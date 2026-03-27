@@ -2391,7 +2391,7 @@ const ProgramAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
         },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          setFormData({ ...formData, image: downloadURL });
+          setFormData(prev => ({ ...prev, image: downloadURL }));
           setIsUploading(false);
           onShowToast('이미지가 성공적으로 업로드되었습니다.');
         }
@@ -2856,6 +2856,7 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
     status: 'published'
   });
   const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2870,7 +2871,7 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
       const uploadTask = await uploadBytesResumable(storageRef, file);
       const downloadURL = await getDownloadURL(uploadTask.ref);
       
-      setFormData({...formData, image: downloadURL});
+      setFormData(prev => ({...prev, image: downloadURL}));
       onShowToast('이미지가 성공적으로 업로드되었습니다.');
     } catch (err) {
       console.error('Upload Error:', err);
@@ -2919,7 +2920,8 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
     setFormData({ ...formData, announcements: newAnnouncements });
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!formData.title || !formData.date) {
       onShowToast('제목과 날짜를 입력해주세요.');
       return;
@@ -2940,101 +2942,97 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
   };
 
   return (
-    <div className="absolute inset-0 bg-surface z-[60] flex flex-col min-h-screen overflow-y-auto pb-32">
-      {/* Background Hero */}
-      <div className="relative h-80 shrink-0">
-        <img 
-          src={formData.image} 
-          className="w-full h-full object-cover" 
-          alt="Worship background" 
-          referrerPolicy="no-referrer"
-        />
-        <div className="absolute inset-0 bg-black/40"></div>
-        
-        <div className="absolute top-16 left-4 right-4 z-20 flex flex-col gap-2">
-          <input 
-            type="text" 
-            value={formData.image}
-            onChange={(e) => setFormData({...formData, image: e.target.value})}
-            className="w-full bg-black/40 backdrop-blur-md text-white px-4 py-2 rounded-xl text-xs border border-white/20 outline-none placeholder:text-white/50"
-            placeholder="대표 배경 이미지 URL 입력 (예: https://...)"
-          />
-          <div className="flex justify-end relative">
-            <input 
-              type="file" 
-              accept="image/*" 
-              id="worship-image-upload" 
-              className="hidden" 
-              onChange={handleImageUpload}
-              disabled={isUploading}
-            />
-            <label 
-              htmlFor="worship-image-upload" 
-              className={`bg-white/20 backdrop-blur-md text-white border border-white/30 px-3 py-2 rounded-xl text-xs font-bold shadow-sm cursor-pointer hover:bg-white/30 transition-colors flex items-center gap-1.5 ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
-            >
-              <Camera size={14} />
-              {isUploading ? '업로드 중...' : '기기에서 사진 첨부'}
-            </label>
-          </div>
-        </div>
-
-        <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
-          <button onClick={onBack} className="w-10 h-10 bg-black/20 backdrop-blur-md rounded-full flex items-center justify-center text-white">
-            <X size={24} />
+    <div className="absolute inset-0 bg-surface z-[60] flex flex-col min-h-screen overflow-y-auto pb-24">
+      <header className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-surface-container-highest">
+        <div className="flex items-center px-2 py-3">
+          <button onClick={onBack} className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
+            <ChevronLeft size={24} />
           </button>
-          <div className="flex gap-2">
-            <button className="w-10 h-10 bg-black/20 backdrop-blur-md rounded-full flex items-center justify-center text-white">
-              <Bookmark size={20} />
-            </button>
-            <button onClick={handleSubmit} className="px-5 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center gap-2 text-white font-bold text-sm border border-white/20">
-              <Send size={18} />
-              <span>배포</span>
-            </button>
-          </div>
+          <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">예배 추가</h1>
         </div>
+      </header>
 
-        <div className="absolute bottom-8 left-8 right-8 space-y-4">
-          <input 
-            type="text" 
-            value={formData.title}
-            onChange={(e) => setFormData({...formData, title: e.target.value})}
-            placeholder="설교 제목"
-            className="w-full bg-transparent text-white text-4xl font-bold placeholder:text-white/50 outline-none"
-          />
-          <div className="relative inline-block">
+      <div className="p-6 space-y-6">
+        
+        {/* Basic Info */}
+        <div className="bg-surface-container-lowest p-5 rounded-3xl border border-surface-container-low shadow-sm space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">예배 제목</label>
+            <input 
+              type="text" 
+              value={formData.title}
+              onChange={(e) => setFormData({...formData, title: e.target.value})}
+              placeholder="예: 주일 2부 예배"
+              className="w-full bg-surface-container-high text-on-surface p-4 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">날짜</label>
             <input 
               type="date" 
               value={formData.date}
               onChange={(e) => setFormData({...formData, date: e.target.value})}
-              className="bg-white/20 backdrop-blur-md text-white px-4 py-2 rounded-xl border border-white/20 outline-none text-sm font-bold"
+              className="w-full bg-surface-container-high text-on-surface p-4 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
             />
-            <button className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 pointer-events-none">
-              <Camera size={18} />
-            </button>
           </div>
         </div>
-      </div>
 
-      {/* Form Content */}
-      <div className="px-6 -mt-6 relative z-10 space-y-8">
-        {/* Section Header */}
-        <div className="flex items-center justify-between bg-white/80 backdrop-blur-md p-4 rounded-2xl border border-surface-container-highest shadow-sm">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-bold text-on-surface">섹션 목록</span>
-            <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full">4개의 섹션</span>
-          </div>
-          <button className="text-xs font-bold text-primary bg-primary/5 px-3 py-1.5 rounded-lg">순서 편집</button>
-        </div>
-
-        {/* YouTube Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-600 border border-red-100">
-                <Play size={20} />
-              </div>
-              <h3 className="font-bold text-on-surface">예배 영상 (YouTube)</h3>
+        {/* Thumbnail Image */}
+        <div className="bg-surface-container-lowest p-5 rounded-3xl border border-surface-container-low shadow-sm space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">대표 이미지 (썸네일)</label>
+            <div 
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full h-48 bg-surface-container-high rounded-2xl border-2 border-dashed border-outline-variant flex flex-col items-center justify-center cursor-pointer hover:bg-surface-container-highest transition-colors relative overflow-hidden group"
+            >
+              {formData.image && formData.image !== 'https://picsum.photos/seed/worship/800/1200' ? (
+                <>
+                  <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
+                    <Camera size={32} className="mb-2" />
+                    <span className="text-sm font-bold">이미지 변경</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center text-on-surface-variant">
+                  {isUploading ? (
+                    <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <>
+                      <Camera size={32} className="mb-2 text-outline" />
+                      <span className="text-sm font-bold">터치하여 이미지 업로드</span>
+                      <span className="text-xs font-medium mt-1">권장 비율 세로형 (2:3)</span>
+                    </>
+                  )}
+                </div>
+              )}
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleImageUpload} 
+                accept="image/*" 
+                className="hidden" 
+              />
             </div>
+            
+            <div className="mt-3">
+              <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">이미지 URL 직접 입력</label>
+              <input 
+                type="text" 
+                value={formData.image}
+                onChange={(e) => setFormData({...formData, image: e.target.value})}
+                placeholder="예: https://..."
+                className="w-full bg-surface-container-high text-on-surface p-4 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium text-sm"
+              />
+            </div>
+          </div>
+        </div>
+        
+        {/* YouTube */}
+        <div className="bg-surface-container-lowest p-5 rounded-3xl border border-surface-container-low shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-bold text-outline uppercase tracking-wider">예배 영상 (YouTube URL)</label>
             <a 
               href="https://m.youtube.com/results?search_query=찬양+예배" 
               target="_blank" 
@@ -3045,60 +3043,39 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
               유튜브 검색
             </a>
           </div>
-          <div className="bg-white rounded-2xl p-5 border border-surface-container-highest shadow-sm">
-            <input 
-              type="text" 
-              value={formData.youtube_url || ''}
-              onChange={(e) => setFormData({...formData, youtube_url: e.target.value})}
-              placeholder="YouTube 동영상 링크를 붙여넣으세요"
-              className="w-full text-sm font-medium text-on-surface placeholder:text-outline outline-none"
-            />
-          </div>
+          <input 
+            type="text" 
+            value={formData.youtube_url || ''}
+            onChange={(e) => setFormData({...formData, youtube_url: e.target.value})}
+            placeholder="YouTube 링크를 붙여넣으세요"
+            className="w-full bg-surface-container-high text-on-surface p-4 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+          />
         </div>
 
-        {/* Scripture Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 border border-green-100">
-                <BookOpen size={20} />
-              </div>
-              <h3 className="font-bold text-on-surface">본문 말씀</h3>
-            </div>
-            <button className="text-on-surface-variant"><MoreHorizontal size={20} /></button>
-          </div>
-          <div className="bg-white rounded-2xl p-5 border border-surface-container-highest shadow-sm space-y-4">
-            <input 
-              type="text" 
-              value={formData.scripture}
-              onChange={(e) => setFormData({...formData, scripture: e.target.value})}
-              placeholder="예: 요한복음 15:1-8"
-              className="w-full text-2xl font-bold text-primary placeholder:text-primary/20 outline-none"
-            />
-            <textarea 
-              value={formData.scripture_content}
-              onChange={(e) => setFormData({...formData, scripture_content: e.target.value})}
-              placeholder="1. 나는 참 포도나무요..."
-              className="w-full min-h-[100px] text-on-surface-variant leading-relaxed outline-none resize-none"
-            />
-          </div>
+        {/* Scripture */}
+        <div className="bg-surface-container-lowest p-5 rounded-3xl border border-surface-container-low shadow-sm space-y-4">
+          <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">본문 말씀</label>
+          <input 
+            type="text" 
+            value={formData.scripture}
+            onChange={(e) => setFormData({...formData, scripture: e.target.value})}
+            placeholder="성경 장/절 (예: 요한복음 15:1-8)"
+            className="w-full bg-surface-container-high text-on-surface p-4 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium mb-3"
+          />
+          <textarea 
+            value={formData.scripture_content}
+            onChange={(e) => setFormData({...formData, scripture_content: e.target.value})}
+            placeholder="말씀 본문 내용"
+            className="w-full bg-surface-container-high text-on-surface p-4 rounded-2xl min-h-[120px] outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium resize-none leading-relaxed"
+          />
         </div>
 
-        {/* Participants Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100">
-                <Users size={20} />
-              </div>
-              <h3 className="font-bold text-on-surface">예배 임사자</h3>
-            </div>
-            <button className="text-on-surface-variant"><MoreHorizontal size={20} /></button>
-          </div>
-          <div className="bg-white rounded-2xl p-4 border border-surface-container-highest shadow-sm space-y-3">
+        {/* Participants */}
+        <div className="bg-surface-container-lowest p-5 rounded-3xl border border-surface-container-low shadow-sm space-y-4">
+          <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">예배 임사자</label>
+          <div className="space-y-3">
             {formData.participants.map((p: any, idx: number) => (
-              <div key={idx} className="flex items-center gap-3 group">
-                <div className="p-2 text-on-surface-variant/30"><Menu size={16} /></div>
+              <div key={idx} className="flex items-center gap-3">
                 <input 
                   type="text" 
                   value={p.role}
@@ -3107,7 +3084,7 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
                     newP[idx].role = e.target.value;
                     setFormData({...formData, participants: newP});
                   }}
-                  className="w-20 bg-surface-container-low px-3 py-2 rounded-xl text-sm font-bold outline-none"
+                  className="w-24 bg-surface-container-high px-4 py-3 rounded-xl text-sm font-bold outline-none"
                   placeholder="역할"
                 />
                 <input 
@@ -3118,42 +3095,31 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
                     newP[idx].name = e.target.value;
                     setFormData({...formData, participants: newP});
                   }}
-                  className="flex-1 bg-white border border-surface-container-highest px-3 py-2 rounded-xl text-sm outline-none"
+                  className="flex-1 bg-surface-container-high px-4 py-3 rounded-xl text-sm outline-none"
                   placeholder="이름"
                 />
                 <button onClick={() => handleRemoveParticipant(idx)} className="p-2 text-error/40 hover:text-error transition-colors">
-                  <Trash2 size={18} />
+                  <Trash2 size={20} />
                 </button>
               </div>
             ))}
             <button 
               onClick={handleAddParticipant}
-              className="w-full py-3 flex items-center justify-center gap-2 text-primary font-bold text-sm border-t border-surface-container-low mt-2"
+              className="w-full py-3 flex items-center justify-center gap-2 text-primary font-bold text-sm bg-primary/5 hover:bg-primary/10 rounded-xl transition-colors mt-2"
             >
               <Plus size={18} />
-              <span>추가</span>
+              <span>임사자 추가</span>
             </button>
           </div>
         </div>
 
-        {/* Praise Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 border border-orange-100">
-                <Music size={20} />
-              </div>
-              <h3 className="font-bold text-on-surface">경배와 찬양</h3>
-            </div>
-            <button className="text-on-surface-variant"><MoreHorizontal size={20} /></button>
-          </div>
-          <div className="bg-white rounded-2xl p-4 border border-surface-container-highest shadow-sm space-y-3">
+        {/* Praise */}
+        <div className="bg-surface-container-lowest p-5 rounded-3xl border border-surface-container-low shadow-sm space-y-4">
+          <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">경배와 찬양</label>
+          <div className="space-y-3">
             {formData.praise.map((p: any, idx: number) => (
-              <div key={idx} className="flex items-center gap-4 p-4 bg-surface-container-lowest rounded-2xl border border-surface-container-low relative group">
-                <div className="w-12 h-12 rounded-xl bg-error/10 flex items-center justify-center text-error">
-                  <Play size={24} fill="currentColor" />
-                </div>
-                <div className="flex-1 space-y-1">
+              <div key={idx} className="flex flex-col gap-2 p-4 bg-surface-container-high rounded-2xl relative">
+                <div className="flex gap-2">
                   <input 
                     type="text" 
                     value={p.title}
@@ -3162,52 +3128,43 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
                       newP[idx].title = e.target.value;
                       setFormData({...formData, praise: newP});
                     }}
-                    placeholder="곡 제목"
-                    className="w-full font-bold text-on-surface outline-none bg-transparent"
+                    placeholder="찬양 제목"
+                    className="flex-1 bg-white px-3 py-2 rounded-xl text-sm font-bold outline-none shadow-sm"
                   />
-                  <input 
-                    type="text" 
-                    value={p.link}
-                    onChange={(e) => {
-                      const newP = [...formData.praise];
-                      newP[idx].link = e.target.value;
-                      setFormData({...formData, praise: newP});
-                    }}
-                    placeholder="YouTube 링크"
-                    className="w-full text-xs text-on-surface-variant outline-none bg-transparent"
-                  />
+                  <button onClick={() => handleRemovePraise(idx)} className="p-2 text-error/40 hover:text-error transition-colors bg-white rounded-xl shadow-sm">
+                    <Trash2 size={18} />
+                  </button>
                 </div>
-                <button onClick={() => handleRemovePraise(idx)} className="p-2 text-error/40 hover:text-error transition-colors">
-                  <Trash2 size={18} />
-                </button>
+                <input 
+                  type="text" 
+                  value={p.link}
+                  onChange={(e) => {
+                    const newP = [...formData.praise];
+                    newP[idx].link = e.target.value;
+                    setFormData({...formData, praise: newP});
+                  }}
+                  placeholder="YouTube 링크 (선택)"
+                  className="w-full bg-white px-3 py-2 rounded-xl text-xs text-on-surface-variant outline-none shadow-sm"
+                />
               </div>
             ))}
             <button 
               onClick={handleAddPraise}
-              className="w-full py-3 flex items-center justify-center gap-2 text-primary font-bold text-sm border-t border-surface-container-low mt-2"
+              className="w-full py-3 flex items-center justify-center gap-2 text-primary font-bold text-sm bg-primary/5 hover:bg-primary/10 rounded-xl transition-colors mt-2"
             >
               <Plus size={18} />
-              <span>추가</span>
+              <span>찬양 추가</span>
             </button>
           </div>
         </div>
 
-        {/* Announcements Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 border border-purple-100">
-                <Megaphone size={20} />
-              </div>
-              <h3 className="font-bold text-on-surface">광고</h3>
-            </div>
-            <button className="text-on-surface-variant"><MoreHorizontal size={20} /></button>
-          </div>
-          <div className="bg-white rounded-2xl p-4 border border-surface-container-highest shadow-sm space-y-3">
+        {/* Announcements */}
+        <div className="bg-surface-container-lowest p-5 rounded-3xl border border-surface-container-low shadow-sm space-y-4">
+          <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">광고</label>
+          <div className="space-y-3">
             {formData.announcements.map((a: any, idx: number) => (
-              <div key={idx} className="flex items-center gap-3 group border-b border-surface-container-low last:border-0 pb-3 last:pb-0">
-                <div className="p-2 text-on-surface-variant/30"><Menu size={16} /></div>
-                <div className="flex-1 space-y-1">
+              <div key={idx} className="flex flex-col gap-2 p-4 bg-surface-container-high rounded-2xl relative">
+                <div className="flex gap-2">
                   <input 
                     type="text" 
                     value={a.title}
@@ -3217,31 +3174,30 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
                       setFormData({...formData, announcements: newA});
                     }}
                     placeholder="광고 제목"
-                    className="w-full font-bold text-on-surface outline-none"
+                    className="flex-1 bg-white px-3 py-2 rounded-xl text-sm font-bold outline-none shadow-sm"
                   />
-                  <input 
-                    type="text" 
-                    value={a.content}
-                    onChange={(e) => {
-                      const newA = [...formData.announcements];
-                      newA[idx].content = e.target.value;
-                      setFormData({...formData, announcements: newA});
-                    }}
-                    placeholder="광고 내용"
-                    className="w-full text-sm text-on-surface-variant outline-none"
-                  />
+                  <button onClick={() => handleRemoveAnnouncement(idx)} className="p-2 text-error/40 hover:text-error transition-colors bg-white rounded-xl shadow-sm">
+                    <Trash2 size={18} />
+                  </button>
                 </div>
-                <button onClick={() => handleRemoveAnnouncement(idx)} className="p-2 text-error/40 hover:text-error transition-colors">
-                  <Trash2 size={18} />
-                </button>
+                <textarea 
+                  value={a.content}
+                  onChange={(e) => {
+                    const newA = [...formData.announcements];
+                    newA[idx].content = e.target.value;
+                    setFormData({...formData, announcements: newA});
+                  }}
+                  placeholder="광고 내용"
+                  className="w-full bg-white px-3 py-2 border-0 rounded-xl text-sm text-on-surface-variant outline-none min-h-[60px] resize-none shadow-sm"
+                />
               </div>
             ))}
             <button 
               onClick={handleAddAnnouncement}
-              className="w-full py-3 flex items-center justify-center gap-2 text-primary font-bold text-sm border-t border-surface-container-low mt-2"
+              className="w-full py-3 flex items-center justify-center gap-2 text-primary font-bold text-sm bg-primary/5 hover:bg-primary/10 rounded-xl transition-colors mt-2"
             >
               <Plus size={18} />
-              <span>추가</span>
+              <span>광고 추가</span>
             </button>
           </div>
         </div>
@@ -3252,6 +3208,19 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
             <Plus size={24} />
           </div>
           <span className="font-bold text-lg">섹션 추가</span>
+        </button>
+
+        {/* Submit Button */}
+        <button 
+          onClick={handleSubmit} 
+          disabled={isUploading}
+          className={`w-full py-4 rounded-2xl font-bold shadow-lg transition-all ${
+            isUploading 
+              ? 'bg-surface-container-highest text-on-surface-variant cursor-not-allowed' 
+              : 'bg-primary text-on-primary shadow-primary/30 active:scale-95'
+          }`}
+        >
+          {isUploading ? '이미지 업로드 중...' : '예배 등록하기'}
         </button>
       </div>
     </div>
