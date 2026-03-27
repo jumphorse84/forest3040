@@ -1,0 +1,110 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    function isAdmin() {
+      return isAuthenticated() && 
+        (
+          (request.auth.token.email == "jumphorse@nate.com") ||
+          (request.auth.token.email == "seokgwan.ms01@gmail.com") ||
+          (request.auth.uid == "sfViap2UZ2alO1kzinMETlcLCxv1") ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        );
+    }
+    function hasPermission(menu) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions[menu] == true;
+    }
+    function isLeader() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'leader';
+    }
+
+    // User rules
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && 
+                      (request.resource.data.role == 'member' || request.auth.token.email == 'jumphorse@nate.com' || request.auth.token.email == 'seokgwan.ms01@gmail.com') &&
+                      (
+                        !('permissions' in request.resource.data) || 
+                        (
+                          request.resource.data.permissions.survey == false &&
+                          request.resource.data.permissions.finance == false &&
+                          request.resource.data.permissions.schedule == false &&
+                          request.resource.data.permissions.forest == false &&
+                          request.resource.data.permissions.attendance == false
+                        )
+                      );
+      allow update: if isOwner(userId) ? 
+                      (
+                        (!('role' in request.resource.data) || !('role' in resource.data) || request.resource.data.role == resource.data.role || isAdmin()) && 
+                        (!('permissions' in request.resource.data) || !('permissions' in resource.data) || request.resource.data.permissions == resource.data.permissions || isAdmin())
+                      ) : 
+                      isAdmin();
+    }
+
+    // Forest rules
+    match /forests/{forestId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || hasPermission('forest');
+    }
+
+    // Program rules
+    match /programs/{programId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isLeader();
+    }
+
+    // Attendance rules
+    match /attendance/{attendanceId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (request.resource.data.uid == request.auth.uid || isAdmin() || hasPermission('attendance'));
+      allow update, delete: if isAdmin() || hasPermission('attendance');
+    }
+
+    // Schedule rules
+    match /schedules/{scheduleId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || hasPermission('schedule');
+    }
+
+    // Forest Post rules
+    match /forest_posts/{postId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.author_uid == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (resource.data.author_uid == request.auth.uid || isAdmin());
+    }
+
+    // Survey rules
+    match /surveys/{surveyId} {
+      allow read: if isAuthenticated();
+      allow update: if isAuthenticated() && 
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responses']) || isAdmin() || hasPermission('survey'));
+      allow write: if isAdmin() || hasPermission('survey');
+    }
+
+    // Fee rules
+    match /fees/{feeId} {
+      allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin() || hasPermission('finance'));
+      allow write: if isAdmin() || hasPermission('finance');
+    }
+
+    // Worship rules
+    match /worships/{worshipId} {
+      allow read: if request.auth != null;
+      allow create: if isAdmin();
+      allow update: if isAdmin() || 
+        (request.auth != null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['view_count']));
+      allow delete: if isAdmin();
+    }
+  }
+}

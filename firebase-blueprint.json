@@ -1,0 +1,239 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "사용자 정보",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "사용자 이름" },
+        "email": { "type": "string", "description": "이메일 주소" },
+        "profile_image": { "type": "string", "description": "프로필 이미지 URL" },
+        "role": { "type": "string", "enum": ["member", "leader", "admin"], "description": "사용자 역할" },
+        "forest_id": { "type": "string", "description": "소속 숲 ID" },
+        "score": { "type": "integer", "description": "활동 점수" },
+        "phone": { "type": "string", "description": "연락처" },
+        "bio": { "type": "string", "description": "자기소개" },
+        "attendance_rate": { "type": "number", "description": "출석률" },
+        "badges": { "type": "array", "items": { "type": "string" }, "description": "획득한 배지 리스트" },
+        "permissions": {
+          "type": "object",
+          "description": "메뉴별 권한 설정",
+          "properties": {
+            "survey": { "type": "boolean" },
+            "finance": { "type": "boolean" },
+            "schedule": { "type": "boolean" },
+            "forest": { "type": "boolean" },
+            "attendance": { "type": "boolean" }
+          }
+        },
+        "activity_history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "date": { "type": "string" },
+              "type": { "type": "string" },
+              "desc": { "type": "string" }
+            }
+          },
+          "description": "활동 내역"
+        }
+      },
+      "required": ["uid", "name", "email"]
+    },
+    "Forest": {
+      "title": "Forest",
+      "description": "숲(소그룹) 정보",
+      "type": "object",
+      "properties": {
+        "forest_id": { "type": "string", "description": "숲 ID" },
+        "name": { "type": "string", "description": "숲 이름" },
+        "leader_uid": { "type": "string", "description": "숲 리더 UID" },
+        "total_score": { "type": "integer", "description": "숲 전체 점수" }
+      },
+      "required": ["forest_id", "name"]
+    },
+    "Program": {
+      "title": "Program",
+      "description": "프로그램 정보",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "프로그램 ID" },
+        "title": { "type": "string", "description": "프로그램 제목" },
+        "date": { "type": "string", "description": "날짜 (YYYY.MM.DD)" },
+        "location": { "type": "string", "description": "장소" },
+        "description": { "type": "string", "description": "설명" },
+        "type": { "type": "string", "description": "유형 (예: 예배, 봉사)" },
+        "points": { "type": "integer", "description": "지급 점수" }
+      },
+      "required": ["id", "title", "date"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "출석 및 활동 기록",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "사용자 UID" },
+        "user_name": { "type": "string", "description": "사용자 이름" },
+        "date": { "type": "string", "format": "date-time", "description": "활동 일시" },
+        "type": { "type": "string", "description": "활동 유형 (예: 주일예배, 프로그램신청)" },
+        "status": { "type": "string", "description": "상태 (예: 출석, 신청완료)" },
+        "program_id": { "type": "string", "description": "관련 프로그램 ID (선택사항)" },
+        "program_title": { "type": "string", "description": "관련 프로그램 제목 (선택사항)" }
+      },
+      "required": ["uid", "date", "type"]
+    },
+    "Schedule": {
+      "title": "Schedule",
+      "description": "일정 정보",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "일정 ID" },
+        "title": { "type": "string", "description": "일정 제목" },
+        "date": { "type": "string", "description": "표시 날짜 (예: 4월 5일)" },
+        "fullDate": { "type": "string", "description": "전체 날짜 (YYYY-MM-DD)" },
+        "time": { "type": "string", "description": "시간" },
+        "location": { "type": "string", "description": "장소" },
+        "d_day": { "type": "string", "description": "D-Day 표시" },
+        "active": { "type": "boolean", "description": "활성화 여부" },
+        "type": { "type": "string", "description": "일정 유형" }
+      },
+      "required": ["id", "title", "fullDate"]
+    },
+    "ForestPost": {
+      "title": "ForestPost",
+      "description": "숲 게시판 게시글",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "게시글 ID" },
+        "forest_id": { "type": "string", "description": "소속 숲 ID" },
+        "author_uid": { "type": "string", "description": "작성자 UID" },
+        "author_name": { "type": "string", "description": "작성자 이름" },
+        "author_image": { "type": "string", "description": "작성자 이미지 URL" },
+        "content": { "type": "string", "description": "내용" },
+        "date": { "type": "string", "format": "date-time", "description": "작성 일시" },
+        "comments": { "type": "integer", "description": "댓글 수" }
+      },
+      "required": ["forest_id", "author_uid", "content", "date"]
+    },
+    "Survey": {
+      "title": "Survey",
+      "description": "설문조사 정보",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "설문 ID" },
+        "title": { "type": "string", "description": "설문 제목" },
+        "description": { "type": "string", "description": "설문 설명" },
+        "options": { "type": "array", "items": { "type": "string" }, "description": "선택지 리스트" },
+        "deadline": { "type": "string", "format": "date-time", "description": "마감 기한" },
+        "status": { "type": "string", "enum": ["active", "closed"], "description": "상태" },
+        "responses": { "type": "object", "description": "사용자별 응답 (uid: optionIndex)" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "생성 일시" }
+      },
+      "required": ["title", "options", "deadline", "status"]
+    },
+    "Fee": {
+      "title": "Fee",
+      "description": "회비 납부 내역",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "사용자 UID" },
+        "year": { "type": "integer", "description": "연도" },
+        "month": { "type": "integer", "description": "월" },
+        "amount": { "type": "integer", "description": "납부 금액" },
+        "status": { "type": "string", "enum": ["paid", "unpaid"], "description": "납부 상태" },
+        "paid_at": { "type": "string", "format": "date-time", "description": "납부 일시" }
+      },
+      "required": ["uid", "year", "month", "amount", "status"]
+    },
+    "Worship": {
+      "title": "Worship",
+      "description": "예배(주보) 정보",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "예배 ID" },
+        "title": { "type": "string", "description": "설교 제목" },
+        "date": { "type": "string", "format": "date-time", "description": "예배 일시" },
+        "image": { "type": "string", "description": "대표 이미지 URL" },
+        "scripture": { "type": "string", "description": "본문 말씀 (예: 요한복음 15:1-8)" },
+        "scripture_content": { "type": "string", "description": "본문 말씀 내용" },
+        "participants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "role": { "type": "string" },
+              "name": { "type": "string" }
+            }
+          },
+          "description": "예배 임사자 리스트"
+        },
+        "praise": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string" },
+              "link": { "type": "string" }
+            }
+          },
+          "description": "경배와 찬양 리스트"
+        },
+        "announcements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string" },
+              "content": { "type": "string" }
+            }
+          },
+          "description": "광고 리스트"
+        },
+        "view_count": { "type": "integer", "description": "조회수" },
+        "status": { "type": "string", "enum": ["draft", "published"], "description": "상태" }
+      },
+      "required": ["title", "date", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "사용자 컬렉션"
+    },
+    "/forests/{forest_id}": {
+      "schema": "Forest",
+      "description": "숲 컬렉션"
+    },
+    "/programs/{id}": {
+      "schema": "Program",
+      "description": "프로그램 컬렉션"
+    },
+    "/attendance/{id}": {
+      "schema": "Attendance",
+      "description": "출석 및 활동 기록 컬렉션"
+    },
+    "/schedules/{id}": {
+      "schema": "Schedule",
+      "description": "일정 컬렉션"
+    },
+    "/forest_posts/{id}": {
+      "schema": "ForestPost",
+      "description": "숲 게시판 게시글 컬렉션"
+    },
+    "/surveys/{id}": {
+      "schema": "Survey",
+      "description": "설문조사 컬렉션"
+    },
+    "/fees/{id}": {
+      "schema": "Fee",
+      "description": "회비 납부 내역 컬렉션"
+    },
+    "/worships/{id}": {
+      "schema": "Worship",
+      "description": "예배 컬렉션"
+    }
+  }
+}

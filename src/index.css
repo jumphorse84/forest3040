@@ -1,0 +1,83 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #f7f6f3;
+  --color-primary: #006948;
+  --color-tertiary: #7d5231;
+  --color-on-surface: #2e2f2d;
+  --color-secondary-fixed-dim: #ffb197;
+  --color-surface-container-highest: #ddddd9;
+  --color-on-error-container: #570008;
+  --color-surface-container-high: #e3e3df;
+  --color-tertiary-dim: #6f4626;
+  --color-secondary-container: #ffc4b1;
+  --color-on-surface-variant: #5b5c5a;
+  --color-secondary-fixed: #ffc4b1;
+  --color-error-dim: #9f0519;
+  --color-tertiary-fixed: #fac097;
+  --color-surface-container-low: #f1f1ee;
+  --color-background: #f7f6f3;
+  --color-on-primary-fixed: #004b33;
+  --color-on-background: #2e2f2d;
+  --color-primary-dim: #005b3f;
+  --color-on-tertiary-container: #613b1c;
+  --color-on-primary-fixed-variant: #006b4a;
+  --color-on-error: #ffefee;
+  --color-primary-fixed-dim: #5af0b4;
+  --color-on-primary: #c8ffe1;
+  --color-on-secondary-fixed-variant: #7e3f29;
+  --color-surface-bright: #f7f6f3;
+  --color-inverse-on-surface: #9d9d9a;
+  --color-surface-container-lowest: #ffffff;
+  --color-outline: #767775;
+  --color-on-primary-container: #006042;
+  --color-primary-container: #6bffc1;
+  --color-inverse-surface: #0d0f0d;
+  --color-secondary-dim: #7d3e28;
+  --color-tertiary-container: #fac097;
+  --color-on-secondary: #ffefeb;
+  --color-inverse-primary: #6bffc1;
+  --color-on-tertiary-fixed-variant: #6c4324;
+  --color-surface-dim: #d4d5d1;
+  --color-surface-tint: #006948;
+  --color-surface-container: #e8e8e5;
+  --color-error-container: #fb5151;
+  --color-primary-fixed: #6bffc1;
+  --color-on-tertiary: #fff0e7;
+  --color-on-secondary-container: #723620;
+  --color-error: #b31b25;
+  --color-outline-variant: #adadab;
+  --color-tertiary-fixed-dim: #ebb38a;
+  --color-on-tertiary-fixed: #4a280a;
+  --color-surface-variant: #ddddd9;
+  --color-secondary: #8b4932;
+  --color-on-secondary-fixed: #5a230f;
+
+  --font-headline: "Plus Jakarta Sans", sans-serif;
+  --font-body: "Manrope", sans-serif;
+  --font-label: "Manrope", sans-serif;
+}
+
+@layer utilities {
+  .squircle {
+    border-radius: 3rem;
+  }
+}
+
+body {
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+  font-family: var(--font-body);
+  min-height: max(884px, 100dvh);
+}
+
+/* Hide scrollbar globally */
+::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
