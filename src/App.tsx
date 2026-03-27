@@ -25,7 +25,8 @@ import {
   updateDoc,
   deleteDoc
 } from 'firebase/firestore';
-import { db as firestoreDb, auth } from './firebase';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { db as firestoreDb, auth, storage } from './firebase';
 import { 
   signInWithCustomToken, 
   onAuthStateChanged, 
@@ -121,6 +122,20 @@ const mockDb = {
     { id: 'fp1', forest_id: 'f1', author_uid: 'u3', author_name: '다윗 민', content: '이번 주 금요일 저녁 8시에 온라인으로 잠깐 모일까요?\n기도제목도 나누고 이번 주 미션도 같이 해봐요!', date: '10.20 10:30', comments: 2 },
   ]
 };
+
+export const FOREST_GROUPS = [
+  { forest_id: 'bebe', name: '베베숲' },
+  { forest_id: 'superpower', name: '숲퍼파워' },
+  { forest_id: 'supermance', name: '숲퍼맨스' },
+  { forest_id: 'bts', name: 'BTS숲' },
+  { forest_id: 'haneul', name: '하늘숲' },
+  { forest_id: 'bamboo', name: '대나무숲' },
+  { forest_id: 'tta', name: '따숲' },
+  { forest_id: 'pureun', name: '푸른숲' },
+  { forest_id: 'goyo', name: '고요숲' },
+  { forest_id: 'supreme', name: '숲프림' },
+  { forest_id: 'start', name: '숲타트' }
+];
 
 // ==========================================
 // 2. Main App Component
@@ -306,6 +321,11 @@ export default function App() {
           profile_image: firebaseUser.photoURL || '',
           role: (firebaseUser.email === 'jumphorse@nate.com' || firebaseUser.email === 'seokgwan.ms01@gmail.com') ? 'admin' : 'member',
           forest_id: '', // No default forest, user must select one
+          birthdate: '',
+          gender: '',
+          has_kids: false,
+          kids_info: '',
+          privacy_agreed: false,
           score: 0,
           phone: '',
           bio: '',
@@ -352,12 +372,12 @@ export default function App() {
     }
   };
 
-  const handleSelectForest = async (forestId: string) => {
+  const handleCompleteRegistration = async (registrationData: any) => {
     if (!user) return;
     try {
       const userRef = doc(firestoreDb, 'users', user.uid);
-      await updateDoc(userRef, { forest_id: forestId });
-      showToast('소속 숲이 설정되었습니다.');
+      await updateDoc(userRef, registrationData);
+      showToast('가입 절차가 완료되었습니다. 환영합니다!');
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
     }
@@ -459,6 +479,12 @@ export default function App() {
     }
   };
 
+  // Merge static forest groups with any available Firestore data
+  const mergedForests = FOREST_GROUPS.map(fg => {
+    const dbForest = forests.find((f: any) => f.forest_id === fg.forest_id || f.name === fg.name);
+    return dbForest ? { ...fg, ...dbForest } : fg;
+  });
+
   // Mock current user combined with Firebase user
   const currentUser = user ? {
     ...mockDb.users[0], // Fallback mock data
@@ -519,9 +545,9 @@ export default function App() {
 
   if (userData && !userData.forest_id) {
     return (
-      <ForestSelectionView 
-        forests={forests} 
-        onSelect={handleSelectForest} 
+      <RegistrationView 
+        forests={mergedForests} 
+        onComplete={handleCompleteRegistration} 
         user={user} 
       />
     );
@@ -539,7 +565,7 @@ export default function App() {
     return (
       <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto w-full flex justify-between items-center px-2 pb-6 pt-3 bg-[#f7f6f3]/80 backdrop-blur-2xl z-50 shadow-[0px_-10px_40px_rgba(0,0,0,0.04)] rounded-t-[3rem]">
         <BottomNavItem icon={<Home size={22} className={activeTab === 'home' ? 'fill-current' : ''} />} label="홈" id="home" activeTab={activeTab} onClick={setActiveTab} />
-        <BottomNavItem icon={<Users size={22} className={activeTab === 'members' ? 'fill-current' : ''} />} label="구성원" id="members" activeTab={activeTab} onClick={setActiveTab} />
+        <BottomNavItem icon={<Users size={22} className={activeTab === 'members' ? 'fill-current' : ''} />} label="삼성/사성이" id="members" activeTab={activeTab} onClick={setActiveTab} />
         <BottomNavItem icon={<LayoutGrid size={22} className={activeTab === 'program' ? 'fill-current' : ''} />} label="프로그램" id="program" activeTab={activeTab} onClick={setActiveTab} />
         <BottomNavItem icon={<BookOpen size={22} className={activeTab === 'worship' ? 'fill-current' : ''} />} label="예배" id="worship" activeTab={activeTab} onClick={setActiveTab} />
         <BottomNavItem icon={<Calendar size={22} className={activeTab === 'calendar' ? 'fill-current' : ''} />} label="일정" id="calendar" activeTab={activeTab} onClick={setActiveTab} />
@@ -556,7 +582,7 @@ export default function App() {
             <Menu className="text-primary-dim w-6 h-6" />
             <span className="font-headline font-bold text-lg tracking-tight text-primary-dim">
               {activeTab === 'home' ? 'FOREST 3040' : 
-               activeTab === 'members' ? '구성원' : 
+               activeTab === 'members' ? '삼성/사성이' : 
                activeTab === 'program' ? '프로그램' : 
                activeTab === 'worship' ? '온라인 주보' : 
                activeTab === 'calendar' ? '일정' : 
@@ -669,7 +695,7 @@ export default function App() {
             <MembersView 
               user={currentUser} 
               users={users.length>0 ? users : mockDb.users}
-              forests={forests.length>0 ? forests : mockDb.forests}
+              forests={mergedForests}
               onOpenBoard={(fId: string) => { setSelectedForestId(fId); setSubPage('forest_board'); }} 
               onShowToast={showToast}
             />
@@ -897,6 +923,8 @@ const HomeView = ({ user, schedules, surveys, attendance, onNavigateToMyForestBo
 
 const MembersView = ({ user, users, forests, onOpenBoard, onShowToast }: any) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeMembersTab, setActiveMembersTab] = useState('all'); // all, ministry, forest
+  const [expandedForests, setExpandedForests] = useState<Record<string, boolean>>({});
 
   const searchResults = searchQuery
     ? users.filter((u: any) => {
@@ -907,12 +935,56 @@ const MembersView = ({ user, users, forests, onOpenBoard, onShowToast }: any) =>
       })
     : [];
 
+  const getForestEmoji = (forestId: string) => {
+    switch(forestId) {
+      case 'bebe': return '👶';
+      case 'superpower': return '💪';
+      case 'supermance': return '🏃';
+      case 'bts': return '🌟';
+      case 'haneul': return '☁️';
+      case 'bamboo': return '🎋';
+      case 'tta': return '☕';
+      case 'pureun': return '🌲';
+      case 'goyo': return '🤫';
+      case 'supreme': return '🧢';
+      case 'start': return '🚀';
+      default: return '🌳';
+    }
+  };
+
+  const toggleForest = (forestId: string) => {
+    setExpandedForests(prev => ({...prev, [forestId]: !prev[forestId]}));
+  };
+
+  const ministries = ['예배팀', '새가족팀', '기획팀', '선교봉사팀', '관리팀'];
+
   return (
     <div className="space-y-6 pb-24">
       {/* Header Section */}
       <div className="flex flex-col gap-2 px-2">
-        <h2 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">구성원</h2>
+        <h2 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">삼성/사성이</h2>
         <p className="text-sm font-medium text-on-surface-variant">FOREST 3040의 모든 가족들을 만나보세요.</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex bg-surface-container-lowest p-1.5 rounded-[1.25rem] shadow-sm">
+        {[
+          { id: 'all', label: '전체' },
+          { id: 'ministry', label: '사역' },
+          { id: 'forest', label: '숲그룹' }
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveMembersTab(tab.id)}
+            className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-all ${
+              activeMembersTab === tab.id 
+                ? 'bg-white shadow-sm text-primary' 
+                : 'text-on-surface-variant hover:text-on-surface hover:bg-white/50'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Search Bar */}
@@ -945,46 +1017,82 @@ const MembersView = ({ user, users, forests, onOpenBoard, onShowToast }: any) =>
           )}
         </div>
       ) : (
-        <div className="space-y-6">
-          {forests.map((forest: any) => {
-            const forestMembers = users.filter((u: any) => u.forest_id === forest.forest_id);
-            const canAccessBoard = user.forest_id === forest.forest_id || user.role === 'admin';
-            
-            return (
-              <div key={forest.forest_id} className="bg-surface-container-lowest p-6 squircle shadow-sm relative overflow-hidden">
-                {/* Decorative background element */}
-                <div className="absolute -right-6 -top-6 w-32 h-32 bg-primary/5 rounded-full blur-2xl pointer-events-none"></div>
-                
-                <div className="flex justify-between items-end mb-6 relative z-10">
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-headline font-extrabold text-on-surface text-xl tracking-tight">{forest.name}</h3>
-                      <span className="text-[10px] font-bold bg-surface text-on-surface-variant px-2.5 py-1 rounded-full border border-surface-container">
-                        {forestMembers.length}명
-                      </span>
+        <div className="space-y-4">
+          {activeMembersTab === 'all' && (
+            <div className="bg-surface-container-lowest p-3 squircle shadow-sm space-y-1">
+              {users.map((member: any) => (
+                <MemberRow key={member.uid} member={member} forests={forests} />
+              ))}
+            </div>
+          )}
+
+          {activeMembersTab === 'ministry' && (
+            <div className="space-y-6">
+              {ministries.map(ministry => {
+                const teamMembers = users.filter((u: any) => u.ministry === ministry);
+                if (teamMembers.length === 0) return null;
+                return (
+                  <div key={ministry} className="bg-surface-container-lowest p-5 squircle shadow-sm">
+                    <h3 className="font-bold text-on-surface text-lg tracking-tight mb-4 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-primary"></span> {ministry}
+                    </h3>
+                    <div className="space-y-1">
+                      {teamMembers.map((member: any) => (
+                        <MemberRow key={member.uid} member={member} forests={forests} />
+                      ))}
                     </div>
                   </div>
-                  {canAccessBoard ? (
-                    <button 
-                      onClick={() => onOpenBoard(forest.forest_id)}
-                      className="flex items-center gap-1.5 bg-primary/10 text-primary-dim px-3.5 py-2 rounded-2xl text-xs font-bold hover:bg-primary/20 transition active:scale-95"
+                );
+              })}
+            </div>
+          )}
+
+          {activeMembersTab === 'forest' && (
+            <div className="space-y-4">
+              {forests.map((forest: any) => {
+                const forestMembers = users.filter((u: any) => u.forest_id === forest.forest_id);
+                const leader = users.find((u: any) => u.forest_id === forest.forest_id && u.role === 'leader');
+                const leaderName = leader ? leader.name : '공석';
+                const isExpanded = expandedForests[forest.forest_id];
+
+                return (
+                  <div key={forest.forest_id} className="bg-surface-container-lowest p-5 squircle shadow-sm relative overflow-hidden transition-all duration-300 border border-transparent hover:border-surface-container-low">
+                    <div 
+                      className="flex justify-between items-center cursor-pointer select-none"
+                      onClick={() => toggleForest(forest.forest_id)}
                     >
-                      <MessageSquare size={14} /> 숲 게시판
-                    </button>
-                  ) : (
-                    <span className="flex items-center gap-1 text-outline px-3 py-1.5 text-[10px] font-bold bg-surface-container-low rounded-xl">
-                      <Lock size={12} /> 타 소속 열람불가
-                    </span>
-                  )}
-                </div>
-                <div className="space-y-2 relative z-10">
-                  {forestMembers.map((member: any) => (
-                    <MemberRow key={member.uid} member={member} forests={forests} />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+                      <div className="flex items-center gap-3">
+                        <div className="text-3xl bg-surface-container p-3 rounded-2xl shadow-inner border border-surface-container-high/50">
+                          {getForestEmoji(forest.forest_id)}
+                        </div>
+                        <div className="flex flex-col">
+                          <h3 className="font-extrabold text-on-surface text-lg">{forest.name}</h3>
+                          <div className="flex items-center gap-2 text-xs text-on-surface-variant font-bold mt-0.5">
+                            <span>{forestMembers.length}명</span>
+                            <span className="w-1 h-1 bg-outline-variant rounded-full"></span>
+                            <span className="flex items-center gap-0.5">👑 {leaderName}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center transition-transform duration-300">
+                        <ChevronRight size={20} className={`text-on-surface-variant transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`} />
+                      </div>
+                    </div>
+                    
+                    <div className={`grid transition-all duration-500 ease-in-out ${isExpanded ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0'}`}>
+                      <div className="overflow-hidden space-y-1">
+                        <div className="pt-2 border-t border-surface-container-low space-y-1 gap-1 flex flex-col">
+                          {forestMembers.map((member: any) => (
+                            <MemberRow key={member.uid} member={member} forests={forests} />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1436,6 +1544,40 @@ const AdminFinanceManagementView = ({ users, fees, onBack, onShowToast }: any) =
 
 const AdminUserManagementView = ({ users, onBack, onShowToast }: any) => {
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [editProfile, setEditProfile] = useState<any>(null);
+
+  const handleSelectUser = (u: any) => {
+    setSelectedUser(u);
+    setEditProfile({
+      name: u.name || '',
+      birthdate: u.birthdate || '',
+      gender: u.gender || '',
+      forest_id: u.forest_id || '',
+      ministry: u.ministry || '',
+      role: u.role || 'member',
+      score: u.score || 0
+    });
+  };
+
+  const handleSaveProfile = async () => {
+    if (!selectedUser) return;
+    try {
+      const userRef = doc(firestoreDb, 'users', selectedUser.uid);
+      await updateDoc(userRef, {
+        name: editProfile.name,
+        birthdate: editProfile.birthdate,
+        gender: editProfile.gender,
+        forest_id: editProfile.forest_id,
+        ministry: editProfile.ministry,
+        role: editProfile.role,
+        score: Number(editProfile.score) || 0
+      });
+      onShowToast('프로필 정보가 수정되었습니다.');
+      setSelectedUser({ ...selectedUser, ...editProfile, score: Number(editProfile.score) || 0 });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `users/${selectedUser.uid}`);
+    }
+  };
 
   const handlePermissionToggle = async (userId: string, menu: string, currentValue: boolean) => {
     try {
@@ -1444,6 +1586,13 @@ const AdminUserManagementView = ({ users, onBack, onShowToast }: any) => {
         [`permissions.${menu}`]: !currentValue
       });
       onShowToast('권한이 변경되었습니다.');
+      setSelectedUser({
+        ...selectedUser,
+        permissions: {
+          ...selectedUser.permissions,
+          [menu]: !currentValue
+        }
+      });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
     }
@@ -1466,10 +1615,75 @@ const AdminUserManagementView = ({ users, onBack, onShowToast }: any) => {
             <button onClick={() => setSelectedUser(null)} className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
               <ChevronLeft size={24} />
             </button>
-            <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">권한 관리: {selectedUser.name}</h1>
+            <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">회원 관리: {selectedUser.name}</h1>
           </div>
         </header>
         <div className="p-6 space-y-6">
+          
+          <div className="bg-surface-container-lowest p-6 rounded-2xl border border-surface-container-low shadow-sm space-y-4">
+            <h3 className="text-sm font-bold text-outline uppercase tracking-widest mb-4">프로필 수정</h3>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-on-surface-variant mb-1 block">이름</label>
+                <input type="text" value={editProfile.name} onChange={e => setEditProfile({...editProfile, name: e.target.value})} className="w-full bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-on-surface-variant mb-1 block">생년월일</label>
+                  <input type="date" value={editProfile.birthdate} onChange={e => setEditProfile({...editProfile, birthdate: e.target.value})} className="w-full bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-on-surface-variant mb-1 block">성별</label>
+                  <select value={editProfile.gender} onChange={e => setEditProfile({...editProfile, gender: e.target.value})} className="w-full bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary">
+                    <option value="">선택 안함</option>
+                    <option value="male">남성</option>
+                    <option value="female">여성</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-on-surface-variant mb-1 block">소속 사역팀</label>
+                  <select value={editProfile.ministry || ''} onChange={e => setEditProfile({...editProfile, ministry: e.target.value})} className="w-full bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary">
+                    <option value="">사역팀 없음</option>
+                    <option value="예배팀">예배팀</option>
+                    <option value="새가족팀">새가족팀</option>
+                    <option value="기획팀">기획팀</option>
+                    <option value="선교봉사팀">선교봉사팀</option>
+                    <option value="관리팀">관리팀</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+               <div>
+                  <label className="text-xs font-bold text-on-surface-variant mb-1 block">소속 숲</label>
+                  <select value={editProfile.forest_id} onChange={e => setEditProfile({...editProfile, forest_id: e.target.value})} className="w-full bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary">
+                    <option value="">소속 없음</option>
+                    {FOREST_GROUPS.map((f: any) => (
+                      <option key={f.forest_id} value={f.forest_id}>{f.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-on-surface-variant mb-1 block">등급 (Role)</label>
+                  <select value={editProfile.role} onChange={e => setEditProfile({...editProfile, role: e.target.value})} className="w-full bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary">
+                    <option value="member">일반 (member)</option>
+                    <option value="leader">리더 (leader)</option>
+                    <option value="admin">관리자 (admin)</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-on-surface-variant mb-1 block">미션 점수</label>
+                <input type="number" value={editProfile.score} onChange={e => setEditProfile({...editProfile, score: e.target.value})} className="w-full bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary" />
+              </div>
+              <button onClick={handleSaveProfile} className="w-full mt-2 py-3 bg-primary text-on-primary rounded-xl font-bold shadow-sm active:scale-95 transition-all">
+                프로필 정보 저장
+              </button>
+            </div>
+          </div>
+
           <div className="bg-surface-container-lowest p-6 rounded-2xl border border-surface-container-low shadow-sm">
             <h3 className="text-sm font-bold text-outline uppercase tracking-widest mb-4">메뉴별 권한 설정</h3>
             <div className="space-y-4">
@@ -1487,7 +1701,7 @@ const AdminUserManagementView = ({ users, onBack, onShowToast }: any) => {
             </div>
           </div>
           <p className="text-xs text-on-surface-variant text-center px-4">
-            권한을 부여받은 사용자는 해당 메뉴의 생성, 수정, 삭제 권한을 갖게 됩니다.
+            권한을 부여받은 사용자는 해당 메뉴의 생성, 수정, 삭제 권한을 갖게 됩니다.<br/>관리자(admin)는 이미 모든 권한을 가지고 있습니다.
           </p>
         </div>
       </div>
@@ -1501,14 +1715,14 @@ const AdminUserManagementView = ({ users, onBack, onShowToast }: any) => {
           <button onClick={onBack} className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
             <ChevronLeft size={24} />
           </button>
-          <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">사용자 권한 관리</h1>
+          <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">사용자 계정 관리</h1>
         </div>
       </header>
       <div className="p-6 space-y-4">
         {users.map((u: any) => (
           <div 
             key={u.uid} 
-            onClick={() => setSelectedUser(u)}
+            onClick={() => handleSelectUser(u)}
             className="bg-surface-container-lowest p-4 rounded-2xl border border-surface-container-low shadow-sm flex items-center justify-between hover:border-primary transition-colors cursor-pointer"
           >
             <div className="flex items-center gap-4">
@@ -1520,7 +1734,12 @@ const AdminUserManagementView = ({ users, onBack, onShowToast }: any) => {
                 <p className="text-xs text-on-surface-variant">{u.email}</p>
               </div>
             </div>
-            <ChevronRight size={20} className="text-outline" />
+            <div className="flex items-center gap-3">
+              <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${u.role === 'admin' ? 'bg-error-container text-on-error-container' : u.role === 'leader' ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-on-surface-variant'}`}>
+                {u.role || 'member'}
+              </span>
+              <ChevronRight size={20} className="text-outline" />
+            </div>
           </div>
         ))}
       </div>
@@ -1715,42 +1934,114 @@ const MyPageView = ({ user, forests, attendance, onBack, onShowToast, onLogout, 
   );
 };
 
-function ForestSelectionView({ forests, onSelect, user }: any) {
+function RegistrationView({ forests, onComplete, user }: any) {
+  const [birthdate, setBirthdate] = useState('');
+  const [gender, setGender] = useState('');
+  const [hasKids, setHasKids] = useState<boolean | null>(null);
+  const [kidsInfo, setKidsInfo] = useState('');
+  const [selectedForest, setSelectedForest] = useState('');
+  const [privacyAgreed, setPrivacyAgreed] = useState(false);
+
+  const displayForests = forests;
+
+  const isFormValid = birthdate && gender && hasKids !== null && (hasKids ? kidsInfo.trim() !== '' : true) && selectedForest && privacyAgreed;
+
+  const handleSubmit = () => {
+    if (!isFormValid) return;
+    onComplete({
+      birthdate,
+      gender,
+      has_kids: hasKids,
+      kids_info: hasKids ? kidsInfo : '',
+      forest_id: selectedForest,
+      privacy_agreed: privacyAgreed
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-surface flex flex-col p-6">
-      <div className="mt-12 mb-8">
-        <div className="w-16 h-16 bg-primary-container rounded-2xl flex items-center justify-center mb-6">
+    <div className="min-h-screen bg-surface flex flex-col p-6 overflow-y-auto">
+      <div className="mt-8 mb-6">
+        <div className="w-16 h-16 bg-primary-container rounded-2xl flex items-center justify-center mb-6 shadow-sm">
           <TreePine size={32} className="text-primary" />
         </div>
-        <h1 className="text-3xl font-bold font-headline text-on-surface mb-2">환영합니다!</h1>
-        <p className="text-on-surface-variant">소속된 숲(공동체)을 선택해주세요.</p>
+        <h1 className="text-2xl font-bold font-headline text-on-surface mb-2 tracking-tight">환영합니다!</h1>
+        <p className="text-on-surface-variant text-sm leading-relaxed">원활한 소통을 위해 처음 한 번만<br/>가입 정보를 입력해 주세요.</p>
       </div>
 
-      <div className="grid gap-4">
-        {forests.map((forest: any) => (
-          <button
-            key={forest.id}
-            onClick={() => onSelect(forest.id)}
-            className="flex items-center justify-between p-6 bg-surface-container-low border border-outline-variant rounded-3xl hover:bg-surface-container-high transition-all active:scale-[0.98] group"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                <TreePine size={24} className="text-primary" />
-              </div>
-              <div className="text-left">
-                <div className="font-bold text-lg text-on-surface">{forest.name}</div>
-                <div className="text-sm text-on-surface-variant">{forest.leader} 리더</div>
-              </div>
+      <div className="space-y-8 flex-1 pb-8">
+        <div className="space-y-3">
+          <label className="block text-sm font-bold text-on-surface">생년월일</label>
+          <input 
+            type="date" 
+            value={birthdate} 
+            onChange={e => setBirthdate(e.target.value)} 
+            className="w-full bg-surface-container-lowest border border-outline-variant rounded-2xl p-4 text-on-surface font-medium outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all shadow-sm"
+          />
+        </div>
+
+        <div className="space-y-3">
+          <label className="block text-sm font-bold text-on-surface">성별</label>
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={() => setGender('male')} className={`p-4 rounded-2xl border font-bold transition-all shadow-sm ${gender === 'male' ? 'bg-primary/10 border-primary text-primary' : 'bg-surface-container-lowest border-outline-variant text-on-surface-variant hover:bg-surface-container-low'}`}>남성</button>
+            <button onClick={() => setGender('female')} className={`p-4 rounded-2xl border font-bold transition-all shadow-sm ${gender === 'female' ? 'bg-primary/10 border-primary text-primary' : 'bg-surface-container-lowest border-outline-variant text-on-surface-variant hover:bg-surface-container-low'}`}>여성</button>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <label className="block text-sm font-bold text-on-surface">자녀 유무 (키즈돌봄)</label>
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={() => setHasKids(true)} className={`p-4 rounded-2xl border font-bold transition-all shadow-sm ${hasKids === true ? 'bg-primary/10 border-primary text-primary' : 'bg-surface-container-lowest border-outline-variant text-on-surface-variant hover:bg-surface-container-low'}`}>있음</button>
+            <button onClick={() => { setHasKids(false); setKidsInfo(''); }} className={`p-4 rounded-2xl border font-bold transition-all shadow-sm ${hasKids === false ? 'bg-primary/10 border-primary text-primary' : 'bg-surface-container-lowest border-outline-variant text-on-surface-variant hover:bg-surface-container-low'}`}>없음</button>
+          </div>
+          {hasKids && (
+            <input 
+              type="text" 
+              placeholder="예: 7세 남, 5세 여" 
+              value={kidsInfo} 
+              onChange={e => setKidsInfo(e.target.value)}
+              className="mt-3 w-full bg-surface-container-lowest border border-outline-variant rounded-2xl p-4 text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all shadow-sm"
+            />
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <label className="block text-sm font-bold text-on-surface">소속 숲 선택</label>
+          <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto p-1 scrollbar-hide">
+            {displayForests.map((forest: any) => (
+              <button
+                key={forest.id}
+                onClick={() => setSelectedForest(forest.id)}
+                className={`flex flex-col items-center justify-center py-4 px-2 border rounded-2xl transition-all shadow-sm ${selectedForest === forest.id ? 'bg-primary text-on-primary border-primary shadow-md' : 'bg-surface-container-lowest border-outline-variant text-on-surface hover:bg-surface-container-low'}`}
+              >
+                <span className="font-bold">{forest.name}</span>
+                {forest.leader && <span className={`text-xs mt-1 ${selectedForest === forest.id ? 'opacity-90' : 'text-on-surface-variant'}`}>{forest.leader} 리더</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-8 pt-6 border-t border-outline-variant space-y-4">
+          <label className="flex items-start gap-4 cursor-pointer group p-3 rounded-2xl hover:bg-surface-container-lowest transition-colors -mx-3">
+            <div className={`mt-0.5 shrink-0 w-6 h-6 rounded-md flex items-center justify-center border transition-all ${privacyAgreed ? 'bg-primary border-primary text-on-primary' : 'bg-white border-outline-variant text-transparent group-hover:border-primary/50'}`}>
+              <CheckCircle2 size={16} className={privacyAgreed ? 'opacity-100' : 'opacity-0'} />
             </div>
-            <ChevronRight className="text-outline group-hover:text-primary transition-colors" size={24} />
-          </button>
-        ))}
+            <input type="checkbox" className="hidden" checked={privacyAgreed} onChange={(e) => setPrivacyAgreed(e.target.checked)} />
+            <span className="text-sm text-on-surface-variant leading-relaxed">
+              [필수] 원활한 모임 및 회원 관리를 위해 위 개인정보(생년월일, 성별, 자녀정보, 소속)를 수집 및 이용하는 것에 동의합니다.
+            </span>
+          </label>
+        </div>
       </div>
-      
-      <div className="mt-auto pt-12 text-center">
-        <p className="text-xs text-on-surface-variant opacity-50">
-          소속을 모르시는 경우 관리자에게 문의해주세요.
-        </p>
+
+      <div className="mt-auto pt-4 pb-2 sticky bottom-0 bg-surface/90 backdrop-blur-md">
+        <button 
+          onClick={handleSubmit}
+          disabled={!isFormValid}
+          className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm ${isFormValid ? 'bg-primary text-on-primary shadow-lg active:scale-95' : 'bg-surface-container-highest text-outline cursor-not-allowed opacity-70'}`}
+        >
+          가입 완료하기
+          <ChevronRight size={20} />
+        </button>
       </div>
     </div>
   );
@@ -1811,6 +2102,17 @@ function BottomNavItem({ icon, label, id, activeTab, onClick }: any) {
 const MemberRow = ({ member, forests, onClick }: any) => {
   const forestName = forests?.find((f: any) => f.forest_id === member.forest_id)?.name || '소속 없음';
   
+  const getMinistryBadge = (ministry: string) => {
+    switch (ministry) {
+      case '예배팀': return 'bg-purple-100 text-purple-700 border-purple-200';
+      case '새가족팀': return 'bg-green-100 text-green-700 border-green-200';
+      case '기획팀': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case '선교봉사팀': return 'bg-orange-100 text-orange-700 border-orange-200';
+      case '관리팀': return 'bg-slate-100 text-slate-700 border-slate-200';
+      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+    }
+  };
+
   return (
     <div onClick={onClick} className="flex justify-between items-center p-3 hover:bg-surface-container-low rounded-[2rem] cursor-pointer transition-colors group">
       <div className="flex items-center gap-4">
@@ -1825,9 +2127,16 @@ const MemberRow = ({ member, forests, onClick }: any) => {
           )}
         </div>
         <div className="flex flex-col">
-          <p className="font-bold text-on-surface text-sm tracking-tight group-hover:text-primary transition-colors">
-            {member.name}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="font-bold text-on-surface text-sm tracking-tight group-hover:text-primary transition-colors">
+              {member.name}
+            </p>
+            {member.ministry && (
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getMinistryBadge(member.ministry)}`}>
+                {member.ministry}
+              </span>
+            )}
+          </div>
           <p className="text-[11px] text-on-surface-variant font-medium mt-0.5 flex items-center gap-1">
             {forestName} {member.role === 'leader' ? '• 숲장' : '• 멤버'}
           </p>
@@ -2375,10 +2684,10 @@ const WorshipView = ({ user, worships, onNavigateToDetail, onNavigateToAdd, onSh
       {user?.role === 'admin' && (
         <button 
           onClick={onNavigateToAdd}
-          className="fixed bottom-24 right-6 bg-white text-primary border border-primary/20 px-6 py-4 rounded-full shadow-xl shadow-primary/10 flex items-center gap-3 font-bold active:scale-95 transition-all z-50"
+          className="fixed bottom-32 left-1/2 -translate-x-1/2 bg-white text-primary border border-primary/20 px-6 py-4 rounded-full shadow-xl shadow-primary/10 flex items-center gap-3 font-bold active:scale-95 transition-all z-50"
         >
           <FileText size={24} />
-          <span>새로운 예배</span>
+          <span>예배추가</span>
         </button>
       )}
     </div>
@@ -2390,6 +2699,7 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
     title: '',
     date: new Date().toISOString().split('T')[0],
     image: 'https://picsum.photos/seed/worship/800/1200',
+    youtube_url: '',
     scripture: '',
     scripture_content: '',
     participants: [
@@ -2402,6 +2712,30 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
     announcements: [],
     status: 'published'
   });
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `worship_images/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const storageRef = ref(storage, fileName);
+      
+      const uploadTask = await uploadBytesResumable(storageRef, file);
+      const downloadURL = await getDownloadURL(uploadTask.ref);
+      
+      setFormData({...formData, image: downloadURL});
+      onShowToast('이미지가 성공적으로 업로드되었습니다.');
+    } catch (err) {
+      console.error('Upload Error:', err);
+      onShowToast('이미지 업로드에 실패했습니다. (Storage 규칙 확인 요망)');
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleAddParticipant = () => {
     setFormData({
@@ -2474,6 +2808,33 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
         />
         <div className="absolute inset-0 bg-black/40"></div>
         
+        <div className="absolute top-16 left-4 right-4 z-20 flex flex-col gap-2">
+          <input 
+            type="text" 
+            value={formData.image}
+            onChange={(e) => setFormData({...formData, image: e.target.value})}
+            className="w-full bg-black/40 backdrop-blur-md text-white px-4 py-2 rounded-xl text-xs border border-white/20 outline-none placeholder:text-white/50"
+            placeholder="대표 배경 이미지 URL 입력 (예: https://...)"
+          />
+          <div className="flex justify-end relative">
+            <input 
+              type="file" 
+              accept="image/*" 
+              id="worship-image-upload" 
+              className="hidden" 
+              onChange={handleImageUpload}
+              disabled={isUploading}
+            />
+            <label 
+              htmlFor="worship-image-upload" 
+              className={`bg-white/20 backdrop-blur-md text-white border border-white/30 px-3 py-2 rounded-xl text-xs font-bold shadow-sm cursor-pointer hover:bg-white/30 transition-colors flex items-center gap-1.5 ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+            >
+              <Camera size={14} />
+              {isUploading ? '업로드 중...' : '기기에서 사진 첨부'}
+            </label>
+          </div>
+        </div>
+
         <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
           <button onClick={onBack} className="w-10 h-10 bg-black/20 backdrop-blur-md rounded-full flex items-center justify-center text-white">
             <X size={24} />
@@ -2522,6 +2883,36 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
           <button className="text-xs font-bold text-primary bg-primary/5 px-3 py-1.5 rounded-lg">순서 편집</button>
         </div>
 
+        {/* YouTube Section */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-2">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-600 border border-red-100">
+                <Play size={20} />
+              </div>
+              <h3 className="font-bold text-on-surface">예배 영상 (YouTube)</h3>
+            </div>
+            <a 
+              href="https://m.youtube.com/results?search_query=찬양+예배" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-xs font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg flex items-center gap-1 active:scale-95 transition-transform"
+            >
+              <Search size={14} />
+              유튜브 검색
+            </a>
+          </div>
+          <div className="bg-white rounded-2xl p-5 border border-surface-container-highest shadow-sm">
+            <input 
+              type="text" 
+              value={formData.youtube_url || ''}
+              onChange={(e) => setFormData({...formData, youtube_url: e.target.value})}
+              placeholder="YouTube 동영상 링크를 붙여넣으세요"
+              className="w-full text-sm font-medium text-on-surface placeholder:text-outline outline-none"
+            />
+          </div>
+        </div>
+
         {/* Scripture Section */}
         <div className="space-y-4">
           <div className="flex items-center justify-between px-2">
@@ -2533,7 +2924,7 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
             </div>
             <button className="text-on-surface-variant"><MoreHorizontal size={20} /></button>
           </div>
-          <div className="bg-white rounded-[32px] p-8 border border-surface-container-highest shadow-sm space-y-4">
+          <div className="bg-white rounded-2xl p-5 border border-surface-container-highest shadow-sm space-y-4">
             <input 
               type="text" 
               value={formData.scripture}
@@ -2561,7 +2952,7 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
             </div>
             <button className="text-on-surface-variant"><MoreHorizontal size={20} /></button>
           </div>
-          <div className="bg-white rounded-[32px] p-4 border border-surface-container-highest shadow-sm space-y-3">
+          <div className="bg-white rounded-2xl p-4 border border-surface-container-highest shadow-sm space-y-3">
             {formData.participants.map((p: any, idx: number) => (
               <div key={idx} className="flex items-center gap-3 group">
                 <div className="p-2 text-on-surface-variant/30"><Menu size={16} /></div>
@@ -2613,7 +3004,7 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
             </div>
             <button className="text-on-surface-variant"><MoreHorizontal size={20} /></button>
           </div>
-          <div className="bg-white rounded-[32px] p-4 border border-surface-container-highest shadow-sm space-y-3">
+          <div className="bg-white rounded-2xl p-4 border border-surface-container-highest shadow-sm space-y-3">
             {formData.praise.map((p: any, idx: number) => (
               <div key={idx} className="flex items-center gap-4 p-4 bg-surface-container-lowest rounded-2xl border border-surface-container-low relative group">
                 <div className="w-12 h-12 rounded-xl bg-error/10 flex items-center justify-center text-error">
@@ -2669,7 +3060,7 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
             </div>
             <button className="text-on-surface-variant"><MoreHorizontal size={20} /></button>
           </div>
-          <div className="bg-white rounded-[32px] p-4 border border-surface-container-highest shadow-sm space-y-3">
+          <div className="bg-white rounded-2xl p-4 border border-surface-container-highest shadow-sm space-y-3">
             {formData.announcements.map((a: any, idx: number) => (
               <div key={idx} className="flex items-center gap-3 group border-b border-surface-container-low last:border-0 pb-3 last:pb-0">
                 <div className="p-2 text-on-surface-variant/30"><Menu size={16} /></div>
@@ -2788,6 +3179,25 @@ const WorshipDetailView = ({ worshipId, worships, onBack }: { worshipId: string 
 
       {/* Content */}
       <div className="px-6 -mt-6 relative z-10 space-y-8">
+        {/* YouTube Video Section */}
+        {worship.youtube_url && (() => {
+          let embedUrl = worship.youtube_url;
+          const match = worship.youtube_url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+          if (match?.[1]) embedUrl = `https://www.youtube.com/embed/${match[1]}?rel=0`;
+          return (
+            <div className="rounded-2xl overflow-hidden shadow-sm aspect-video w-full">
+              <iframe 
+                className="w-full h-full"
+                src={embedUrl}
+                title="YouTube video player" 
+                frameBorder="0" 
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                allowFullScreen
+              />
+            </div>
+          );
+        })()}
+
         {/* Scripture Section */}
         <div className="space-y-4">
           <div className="flex items-center gap-3 px-2">
@@ -2796,7 +3206,7 @@ const WorshipDetailView = ({ worshipId, worships, onBack }: { worshipId: string 
             </div>
             <h3 className="font-bold text-on-surface">본문 말씀</h3>
           </div>
-          <div className="bg-white rounded-[32px] p-8 border border-surface-container-highest shadow-sm space-y-4">
+          <div className="bg-white rounded-2xl p-5 border border-surface-container-highest shadow-sm space-y-4">
             <h4 className="text-2xl font-bold text-primary">{worship.scripture}</h4>
             <p className="text-on-surface-variant leading-relaxed whitespace-pre-wrap">
               {worship.scripture_content}
@@ -2813,7 +3223,7 @@ const WorshipDetailView = ({ worshipId, worships, onBack }: { worshipId: string 
               </div>
               <h3 className="font-bold text-on-surface">예배 임사자</h3>
             </div>
-            <div className="bg-white rounded-[32px] p-6 border border-surface-container-highest shadow-sm space-y-4">
+            <div className="bg-white rounded-2xl p-5 border border-surface-container-highest shadow-sm space-y-4">
               {worship.participants.map((p: any, idx: number) => (
                 <div key={idx} className="flex items-center justify-between border-b border-surface-container-low last:border-0 pb-3 last:pb-0">
                   <span className="text-on-surface-variant font-bold">{p.role}</span>
@@ -2840,7 +3250,7 @@ const WorshipDetailView = ({ worshipId, worships, onBack }: { worshipId: string 
                   href={p.link} 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="bg-white rounded-[32px] p-4 flex items-center gap-4 border border-surface-container-highest shadow-sm hover:shadow-md transition-all group"
+                  className="bg-white rounded-2xl p-4 flex items-center gap-4 border border-surface-container-highest shadow-sm hover:shadow-md transition-all group"
                 >
                   <div className="w-12 h-12 rounded-xl bg-error/10 flex items-center justify-center text-error group-hover:scale-110 transition-transform">
                     <Play size={24} fill="currentColor" />
@@ -2865,7 +3275,7 @@ const WorshipDetailView = ({ worshipId, worships, onBack }: { worshipId: string 
               </div>
               <h3 className="font-bold text-on-surface">광고</h3>
             </div>
-            <div className="bg-white rounded-[32px] p-6 border border-surface-container-highest shadow-sm space-y-6">
+            <div className="bg-white rounded-2xl p-5 border border-surface-container-highest shadow-sm space-y-6">
               {worship.announcements.map((a: any, idx: number) => (
                 <div key={idx} className="space-y-1 border-b border-surface-container-low last:border-0 pb-4 last:pb-0">
                   <h4 className="font-bold text-on-surface text-lg">{a.title}</h4>
