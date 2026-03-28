@@ -25,7 +25,7 @@ import {
   updateDoc,
   deleteDoc
 } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db as firestoreDb, auth, storage } from './firebase';
 import { 
   signInWithCustomToken, 
@@ -2379,27 +2379,15 @@ const ProgramAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
     setIsUploading(true);
     try {
       const storageRef = ref(storage, `programs/${Date.now()}_${file.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
-
-      uploadTask.on(
-        'state_changed',
-        () => {},
-        (error) => {
-          console.error('Upload error:', error);
-          onShowToast('이미지 업로드 중 오류가 발생했습니다.');
-          setIsUploading(false);
-        },
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          setFormData(prev => ({ ...prev, image: downloadURL }));
-          setIsUploading(false);
-          onShowToast('이미지가 성공적으로 업로드되었습니다.');
-        }
-      );
-    } catch (error) {
-      console.error(error);
+      const uploadResult = await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(uploadResult.ref);
+      setFormData(prev => ({ ...prev, image: downloadURL }));
       setIsUploading(false);
-      onShowToast('이미지 업로드에 실패했습니다.');
+      onShowToast('이미지가 성공적으로 업로드되었습니다.');
+    } catch (error: any) {
+      console.error('Upload Error:', error);
+      setIsUploading(false);
+      onShowToast(`업로드 실패: ${error.message || '권한 또는 네트워크 오류'}`);
     }
   };
 
@@ -2868,14 +2856,14 @@ const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
       const fileName = `worship_images/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
       const storageRef = ref(storage, fileName);
       
-      const uploadTask = await uploadBytesResumable(storageRef, file);
-      const downloadURL = await getDownloadURL(uploadTask.ref);
+      const uploadResult = await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(uploadResult.ref);
       
       setFormData(prev => ({...prev, image: downloadURL}));
       onShowToast('이미지가 성공적으로 업로드되었습니다.');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Upload Error:', err);
-      onShowToast('이미지 업로드에 실패했습니다. (Storage 규칙 확인 요망)');
+      onShowToast(`업로드 실패: ${err.message || '권한 또는 네트워크 오류'}`);
     } finally {
       setIsUploading(false);
     }
