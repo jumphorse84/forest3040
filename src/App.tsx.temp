@@ -1,0 +1,201 @@
+const ScheduleAddView = ({ user, onBack, onShowToast }: { user: any, onBack: () => void, onShowToast: (msg: string) => void }) => {
+  const today = new Date().toISOString().split('T')[0];
+  const [formData, setFormData] = useState<any>({
+    title: '',
+    fullDate: today,
+    time: '',
+    location: '',
+    type: 'worship',
+    description: '',
+    active: true,
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!formData.title || !formData.fullDate) {
+      onShowToast('\uc81c\ubaa9\uacfc \ub0a0\uc9dc\ub97c \uc785\ub825\ud574\uc8fc\uc138\uc694.');
+      return;
+    }
+    if (!auth.currentUser) {
+      onShowToast('\ub85c\uadf8\uc778\uc774 \ud544\uc694\ud569\ub2c8\ub2e4.');
+      return;
+    }
+    if (user?.role !== 'admin' && user?.role !== 'leader') {
+      onShowToast('\uc77c\uc815 \ub4f1\ub85d\uc740 \uad00\ub9ac\uc790 \ub610\ub294 \uc232\uc9c0\uae30\ub9cc \uac00\ub2a5\ud569\ub2c8\ub2e4.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const scheduleDate = new Date(formData.fullDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      scheduleDate.setHours(0, 0, 0, 0);
+      const diffDays = Math.round((scheduleDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const dDay = diffDays === 0 ? 'D-Day' : diffDays > 0 ? `D-${diffDays}` : `D+${Math.abs(diffDays)}`;
+
+      await addDoc(collection(firestoreDb, 'schedules'), {
+        title: formData.title,
+        fullDate: formData.fullDate,
+        date: Timestamp.fromDate(scheduleDate),
+        time: formData.time,
+        location: formData.location,
+        type: formData.type,
+        description: formData.description,
+        d_day: dDay,
+        active: diffDays >= 0,
+        createdAt: Timestamp.now(),
+        created_by: auth.currentUser.uid,
+      });
+      onShowToast('\uc77c\uc815\uc774 \ub4f1\ub85d\ub418\uc5c8\uc2b5\ub2c8\ub2e4!');
+      onBack();
+    } catch (err: any) {
+      console.error('Schedule add error:', err);
+      if (err?.code === 'permission-denied') {
+        onShowToast('\uad8c\ud55c\uc774 \uc5c6\uc2b5\ub2c8\ub2e4. Firestore \uad8c\ud55c\uc744 \ud655\uc778\ud574\uc8fc\uc138\uc694.');
+      } else {
+        onShowToast(`\uc77c\uc815 \ub4f1\ub85d\uc5d0 \uc2e4\ud328\ud588\uc2b5\ub2c8\ub2e4: ${err?.message || '\uc54c \uc218 \uc5c6\ub294 \uc624\ub958'}`);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const typeOptions = [
+    { value: 'worship', label: '\ud608\ubc30', emoji: '🙏' },
+    { value: 'education', label: '\uad50\uc721/\ud6c8\ub828', emoji: '📚' },
+    { value: 'volunteer', label: '\ubd04\uc0ac', emoji: '🤝' },
+    { value: 'event', label: '\ud589\uc0ac', emoji: '🎉' },
+    { value: 'meeting', label: '\ud68c\uc758', emoji: '💬' },
+  ];
+
+  return (
+    <div className="absolute inset-0 bg-surface z-[60] flex flex-col min-h-screen overflow-y-auto pb-24">
+      <header className="sticky top-0 z-50 bg-surface/90 backdrop-blur-md border-b border-surface-container-highest">
+        <div className="flex items-center justify-between px-2 py-3">
+          <div className="flex items-center">
+            <button onClick={onBack} className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
+              <ChevronLeft size={24} />
+            </button>
+            <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">\uc77c\uc815 \ub4f1\ub85d</h1>
+          </div>
+          <button
+            onClick={() => handleSubmit()}
+            disabled={isSubmitting}
+            className="mr-3 px-5 py-2 bg-primary text-on-primary rounded-full text-sm font-bold shadow-sm active:scale-95 transition-all disabled:opacity-50"
+          >
+            {isSubmitting ? '\ub4f1\ub85d \uc911...' : '\ub4f1\ub85d'}
+          </button>
+        </div>
+      </header>
+
+      <div className="flex-1 px-5 py-6 space-y-6">
+        {/* 제목 */}
+        <div className="bg-surface-container-lowest rounded-3xl p-5 shadow-sm border border-surface-container-low space-y-4">
+          <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-widest">\uae30\ubcf8 \uc815\ubcf4</h2>
+          <div>
+            <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">\uc77c\uc815 \uc81c\ubaa9 *</label>
+            <input
+              type="text"
+              placeholder="\uc608) \ubd80\ud65c\uc808 \uc5f0\ud569 \ud608\ubc30"
+              value={formData.title}
+              onChange={e => setFormData({ ...formData, title: e.target.value })}
+              className="w-full bg-surface border border-surface-container-highest py-3 px-4 rounded-2xl text-base font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+            />
+          </div>
+
+          {/* 날짜 & 시간 */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">\ub0a0\uc9dc *</label>
+              <input
+                type="date"
+                value={formData.fullDate}
+                onChange={e => setFormData({ ...formData, fullDate: e.target.value })}
+                className="w-full bg-surface border border-surface-container-highest py-3 px-3 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">\uc2dc\uac04</label>
+              <input
+                type="time"
+                value={formData.time}
+                onChange={e => setFormData({ ...formData, time: e.target.value })}
+                className="w-full bg-surface border border-surface-container-highest py-3 px-3 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+              />
+            </div>
+          </div>
+
+          {/* 장소 */}
+          <div>
+            <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">\uc7a5\uc18c</label>
+            <input
+              type="text"
+              placeholder="\uc608) \ubcf8\ub2f9 \ub300\ud608\ubc30\uc2e4"
+              value={formData.location}
+              onChange={e => setFormData({ ...formData, location: e.target.value })}
+              className="w-full bg-surface border border-surface-container-highest py-3 px-4 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+            />
+          </div>
+        </div>
+
+        {/* 유형 선택 */}
+        <div className="bg-surface-container-lowest rounded-3xl p-5 shadow-sm border border-surface-container-low space-y-4">
+          <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-widest">\uc77c\uc815 \uc720\ud615</h2>
+          <div className="grid grid-cols-5 gap-2">
+            {typeOptions.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setFormData({ ...formData, type: opt.value })}
+                className={`flex flex-col items-center gap-1.5 py-3 rounded-2xl border transition-all ${
+                  formData.type === opt.value
+                    ? 'bg-primary-container border-primary text-on-primary-container shadow-sm'
+                    : 'bg-surface border-surface-container-highest text-on-surface-variant'
+                }`}
+              >
+                <span className="text-xl">{opt.emoji}</span>
+                <span className="text-[10px] font-bold">{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 설명 */}
+        <div className="bg-surface-container-lowest rounded-3xl p-5 shadow-sm border border-surface-container-low space-y-4">
+          <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-widest">\uc0c1\uc138 \uc124\uba85</h2>
+          <textarea
+            placeholder="\uc77c\uc815\uc5d0 \ub300\ud55c \uc790\uc138\ud55c \ub0b4\uc6a9\uc744 \uc785\ub825\ud574\uc8fc\uc138\uc694..."
+            value={formData.description}
+            onChange={e => setFormData({ ...formData, description: e.target.value })}
+            rows={5}
+            className="w-full bg-surface border border-surface-container-highest py-3 px-4 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all resize-none leading-relaxed"
+          />
+        </div>
+
+        {/* D-day 미리보기 */}
+        {formData.fullDate && (
+          <div className="bg-primary-container/30 rounded-3xl p-5 border border-primary/10">
+            <div className="flex items-center gap-3">
+              <Calendar size={20} className="text-primary" />
+              <div>
+                <p className="text-xs font-bold text-primary-dim uppercase tracking-widest mb-0.5">D-Day \ubbf8\ub9ac\ubcf4\uae30</p>
+                <p className="font-bold text-on-surface">
+                  {(() => {
+                    const d = new Date(formData.fullDate);
+                    const t = new Date();
+                    t.setHours(0,0,0,0);
+                    d.setHours(0,0,0,0);
+                    const diff = Math.round((d.getTime() - t.getTime()) / (1000 * 60 * 60 * 24));
+                    if (diff === 0) return 'D-Day \uc624\ub298!';
+                    if (diff > 0) return `D-${diff} \uc5b4\uc5b4, \ud558\ub8e8\uac00 \ub354 \ub0a8\uc558\uc5b4\uc694!`;
+                    return `\uc774\ubbf8 ${Math.abs(diff)}\uc77c \uc804 \ub0a0\uc9dc\uc785\ub2c8\ub2e4.`;
+                  })()}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );

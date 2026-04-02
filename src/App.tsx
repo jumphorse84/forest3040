@@ -44,7 +44,7 @@ import { jwtDecode } from 'jwt-decode';
 // ==========================================
 // Types & Error Handling
 // ==========================================
-enum OperationType {
+export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
   DELETE = 'delete',
@@ -72,7 +72,7 @@ interface FirestoreErrorInfo {
   }
 }
 
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -140,6 +140,24 @@ export const FOREST_GROUPS = [
 // ==========================================
 // 2. Main App Component
 // ==========================================
+// ==========================================
+// View Imports (modularized)
+// ==========================================
+import HomeView from './views/HomeView';
+import MembersView from './views/MembersView';
+import AdminUserManagementView from './views/AdminUserManagementView';
+import MyPageView from './views/MyPageView';
+import ProgramView from './views/ProgramView';
+import ProgramAddView from './views/ProgramAddView';
+import ProgramDetailView from './views/ProgramDetailView';
+import WorshipView from './views/WorshipView';
+import WorshipAddView from './views/WorshipAddView';
+import WorshipDetailView from './views/WorshipDetailView';
+import KidsView from './views/KidsView';
+import CalendarView from './views/CalendarView';
+import SurveyView from './views/SurveyView';
+import PastoralStatsDashboardView from './views/PastoralStatsDashboardView';
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('home'); 
   const [subPage, setSubPage] = useState<string | null>(null); 
@@ -300,7 +318,7 @@ export default function App() {
       setFees(snapshot.docs.map(d => ({ ...d.data(), id: d.id })));
     }, (err) => handleFirestoreError(err, OperationType.GET, 'fees'));
 
-    const canSeePastoral = isAdminUser || userData?.role === 'leader';
+    const canSeePastoral = isAdminUser || userData?.role === 'pastor' || userData?.role === 'leader';
     let unsubPastoral = () => {};
     let unsubSettlements = () => {};
 
@@ -741,11 +759,11 @@ export default function App() {
               onShowToast={showToast}
               onNavigateToStats={() => setSubPage('pastoral_stats')}
               onMemberClick={(u: any) => {
-                const canSeePastoral = currentUser?.role === 'admin' || (currentUser?.role === 'leader' && currentUser?.forest_id === u.forest_id);
+                const canSeePastoral = currentUser?.role === 'admin' || currentUser?.role === 'pastor' || (currentUser?.role === 'leader' && currentUser?.forest_id === u.forest_id);
                 if (canSeePastoral) {
                   setSelectedPastoralUser(u);
                 } else {
-                  showToast('목양 카드는 숲지기와 관리자만 볼 수 있습니다.');
+                  showToast('목양 카드는 숲지기, 목사님, 관리자만 볼 수 있습니다.');
                 }
               }}
             />
@@ -788,7 +806,7 @@ export default function App() {
             onBack={() => setSubPage(null)} 
           />
         )}
-        {!subPage && activeTab === 'calendar' && <CalendarView schedules={schedules.length > 0 ? schedules : mockDb.schedules} onShowToast={showToast} />}
+        {!subPage && activeTab === 'calendar' && <CalendarView user={currentUser} schedules={schedules.length > 0 ? schedules : mockDb.schedules} onShowToast={showToast} />}
         {!subPage && activeTab === 'kids' && <KidsView user={currentUser} onShowToast={showToast} />}
       </main>
 
@@ -840,334 +858,8 @@ export default function App() {
 // ==========================================
 // 3. Sub Views
 // ==========================================
-
-const HomeView = ({ user, schedules, surveys, attendance, onNavigateToMyForestBoard, onNavigate }: any) => {
-  const today = new Date().toISOString().split('T')[0];
-  const hasCheckedInToday = attendance?.some((a: any) => 
-    a.uid === user.uid && 
-    a.date?.toDate && 
-    a.date.toDate().toISOString().split('T')[0] === today
-  );
-
-  const activeSurveys = surveys?.filter((s: any) => s.status === 'active') || [];
-
-  return (
-    <>
-      {/* Greeting Card */}
-      <section className="relative overflow-hidden squircle p-8 bg-gradient-to-br from-emerald-300 to-emerald-400 text-on-primary-container shadow-sm group">
-        <div className="absolute top-0 right-0 -mr-8 -mt-8 w-40 h-40 bg-white/20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
-        <div className="relative z-10">
-          <p className="font-headline text-lg font-semibold opacity-90 mb-1">기쁨 가득한 한 주 되세요, {user.name} 님</p>
-          <div className="flex items-end gap-2">
-            <h1 className="font-headline text-4xl font-extrabold tracking-tight">{user.score}점</h1>
-            <span className="mb-1 text-sm font-bold opacity-75">내 활동 점수</span>
-          </div>
-          <div className="mt-6 flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-white/30 backdrop-blur-md py-2 px-4 rounded-full w-fit">
-              <Flame className="w-4 h-4" fill="currentColor" />
-              <span className="text-xs font-bold uppercase tracking-wider">상위 5%</span>
-            </div>
-          </div>
-        </div>
-        <div className="absolute -bottom-6 -right-6 w-32 h-32 opacity-20">
-          <img 
-            className="w-full h-full object-contain" 
-            alt="상큼한 초록 잎사귀 수채화 텍스처" 
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuBTliXpNYHI2hYhXGRPTI8UzhskQgAgV_Ea6d0i8IK-htrFSr7OjZD_TFziS-_qPf-aTbB-yelF9F_gNOMm-Ho0lqKqubgQWL3FJwo6_0TW1Dv-g6t61ojCgHZYmcIoBIeMNwxfZGXluLM9SgEi4w9z3EYsc7ADBZ6F4oHAE42NiTNwdLMQMvzdHeIpy2p5RyqXuX13Pt1xvnBNVTp-6rW8-BotFzZreFB8Z2nkpswN4JDil48AEBjijjd2Mm3dST4gwP--BYVT1Q"
-            referrerPolicy="no-referrer"
-          />
-        </div>
-      </section>
-
-      {/* Quick Menu Grid */}
-      <section className="space-y-4">
-        <div className="flex justify-between items-center px-2">
-          <h2 className="font-headline text-xl font-bold tracking-tight text-on-surface">간편 메뉴</h2>
-          <span className="text-xs font-bold text-primary-dim uppercase tracking-widest cursor-pointer">전체보기</span>
-        </div>
-        <div className="grid grid-cols-5 gap-3">
-          <MenuButton icon={<QrCode className="w-6 h-6 text-primary-dim group-hover:scale-110 transition-transform" />} label="출석체크" hoverBg="hover:bg-primary-container" onClick={() => onNavigate('attendance')} />
-          <MenuButton icon={<Users className="w-6 h-6 text-secondary group-hover:scale-110 transition-transform" />} label="숲 모임" hoverBg="hover:bg-secondary-container" onClick={onNavigateToMyForestBoard} />
-          <MenuButton icon={<ClipboardList className="w-6 h-6 text-tertiary group-hover:scale-110 transition-transform" />} label="설문조사" hoverBg="hover:bg-tertiary-container" onClick={() => onNavigate('survey')} />
-          <MenuButton icon={<Wallet className="w-6 h-6 text-emerald-800 group-hover:scale-110 transition-transform" />} label="회비납부" hoverBg="hover:bg-emerald-100" onClick={() => onNavigate('finance')} />
-          <MenuButton icon={<FileText className="w-6 h-6 text-blue-800 group-hover:scale-110 transition-transform" />} label="회의록" hoverBg="hover:bg-blue-100" onClick={() => onNavigate('minutes')} />
-        </div>
-      </section>
-
-      {/* Active Surveys Section */}
-      {activeSurveys.length > 0 && (
-        <section className="space-y-4">
-          <div className="flex justify-between items-center px-2">
-            <h2 className="font-headline text-xl font-bold tracking-tight text-on-surface">진행 중인 설문</h2>
-            <span onClick={() => onNavigate('survey')} className="text-xs font-bold text-primary cursor-pointer">더보기</span>
-          </div>
-          <div className="space-y-3">
-            {activeSurveys.map((survey: any) => (
-              <div 
-                key={survey.id} 
-                onClick={() => onNavigate('survey')}
-                className="bg-tertiary-container/20 border border-tertiary-container/30 p-5 rounded-3xl flex items-center justify-between group cursor-pointer hover:bg-tertiary-container/30 transition-all"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="bg-tertiary text-on-tertiary p-2.5 rounded-2xl">
-                    <ClipboardList size={20} />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-on-surface">{survey.title}</h3>
-                    <p className="text-xs text-on-surface-variant mt-0.5">{survey.deadline?.toDate ? `마감: ${survey.deadline.toDate().toLocaleDateString()}` : '진행 중'}</p>
-                  </div>
-                </div>
-                <ChevronRight size={20} className="text-tertiary group-hover:translate-x-1 transition-transform" />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Upcoming Schedule Section */}
-    <section className="space-y-6">
-      <div className="flex justify-between items-center px-2">
-        <h2 className="font-headline text-xl font-bold tracking-tight text-on-surface">다가오는 일정</h2>
-        <div className="flex gap-1">
-          <div className="w-2 h-2 rounded-full bg-primary"></div>
-          <div className="w-2 h-2 rounded-full bg-surface-container-highest"></div>
-        </div>
-      </div>
-      <div className="space-y-4">
-        {schedules.map((schedule: any) => (
-          <ScheduleItem 
-            key={schedule.id}
-            month={schedule.date.split(' ')[0]} 
-            day={schedule.date.split(' ')[1].replace('일', '')} 
-            dDay={schedule.d_day} 
-            time={schedule.time} 
-            title={schedule.title} 
-            location={schedule.location} 
-            dDayClass={schedule.active ? "bg-error-container/20 text-on-error-container" : "bg-surface-container-high text-on-surface-variant"}
-            active={schedule.active}
-          />
-        ))}
-      </div>
-    </section>
-
-    {/* Community Highlight */}
-    <section className="bg-tertiary-container/30 squircle overflow-hidden p-6 relative">
-      <div className="relative z-10 flex flex-col gap-4">
-        <span className="bg-tertiary text-on-tertiary text-[10px] font-bold uppercase tracking-[0.2em] px-3 py-1 rounded-full w-fit">멤버 이야기</span>
-        <h4 className="font-headline text-2xl font-extrabold text-on-tertiary-container leading-tight">매일의 신앙 산책 속에서 평안을 찾다.</h4>
-        <div className="flex items-center gap-3 mt-2">
-          <div className="w-10 h-10 rounded-full border-2 border-white overflow-hidden">
-            <img 
-              className="w-full h-full object-cover" 
-              alt="웃고 있는 한국인 남성 멤버 프로필" 
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuA8iYWtDYB66oP6sVlyf1a1oU9e0bn0UolNyAnjiC4cWxvHHehWeK9fvFgv0MrgPHoetw6Gq74dA4LgaTdZ7QUeKwew2-w93mRv3ZOtjGJtIjb7QSJr_UNQt6k_7HiZ_QT1aRRuKgH-LeRplKy5hLDK23z4FMjTWeDbDRAte4VGf1kwa4UX9Hv68vGl3z0NyddNszTU_BOBrLFbYvTI0w3ZTQRcNbXYhqOwWj2luL7zQmuxsm55pEMyZpNPRyllwo5gchEdny8YpA"
-              referrerPolicy="no-referrer"
-            />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-bold text-on-tertiary-container">다윗 민</span>
-            <span className="text-[10px] font-medium text-tertiary-dim uppercase">디자인 팀</span>
-          </div>
-        </div>
-      </div>
-      <div className="absolute top-0 right-0 w-1/2 h-full">
-        <img 
-          className="w-full h-full object-cover mix-blend-multiply opacity-20" 
-          alt="가을 숲의 부드러운 배경" 
-          src="https://lh3.googleusercontent.com/aida-public/AB6AXuDbWVS0jJsnx05Pemrlg8SarOQuUSDp0emLH_KtYNKtZrnmHdvbmGzAMCBJru2-poOs2AR8pdpCx8PHwGzRHJGODwnEjjZFj9bDlayCSSLjBPXxCOTCKMyDb7wPEoSprE1u36FcBS77CVhkXsjcS4qjlhP2plOsn7bhJ1nzX32Xo2Qq0klT6aLFyNc3gtMNKTgfMDWmhv-v7eOWeMxB1zLwwK6hGNcEo3pFocbyNAOUSZ1Vnrh6a25wv5ZAHYx6LICCr3RyHUTYEg"
-          referrerPolicy="no-referrer"
-        />
-      </div>
-    </section>
-    </>
-  );
-};
-
-const MembersView = ({ user, users, forests, onOpenBoard, onShowToast, onMemberClick, onNavigateToStats }: any) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeMembersTab, setActiveMembersTab] = useState('all'); // all, ministry, forest
-  const [expandedForests, setExpandedForests] = useState<Record<string, boolean>>({});
-
-  const searchResults = searchQuery
-    ? users.filter((u: any) => {
-        const forest = forests.find((f: any) => f.forest_id === u.forest_id);
-        const forestName = forest?.name || '';
-        return u.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-               forestName.toLowerCase().includes(searchQuery.toLowerCase());
-      })
-    : [];
-
-  const getForestEmoji = (forestId: string) => {
-    switch(forestId) {
-      case 'bebe': return '👶';
-      case 'superpower': return '💪';
-      case 'supermance': return '🏃';
-      case 'bts': return '🌟';
-      case 'haneul': return '☁️';
-      case 'bamboo': return '🎋';
-      case 'tta': return '☕';
-      case 'pureun': return '🌲';
-      case 'goyo': return '🤫';
-      case 'supreme': return '🧢';
-      case 'start': return '🚀';
-      default: return '🌳';
-    }
-  };
-
-  const toggleForest = (forestId: string) => {
-    setExpandedForests(prev => ({...prev, [forestId]: !prev[forestId]}));
-  };
-
-  const ministries = ['예배팀', '새가족팀', '기획팀', '선교봉사팀', '관리팀'];
-
-  return (
-    <div className="space-y-6 pb-24">
-      {/* Header Section */}
-      <div className="flex items-start justify-between px-2">
-        <div className="flex flex-col gap-2">
-          <h2 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">삼성/사성이</h2>
-          <p className="text-sm font-medium text-on-surface-variant">FOREST 3040의 모든 가족들을 만나보세요.</p>
-        </div>
-        {(user?.role === 'admin' || user?.role === 'leader') && (
-          <button onClick={() => onNavigateToStats?.()} className="p-3 bg-primary/10 text-primary rounded-xl active:scale-95 transition-transform flex flex-col items-center justify-center gap-1 shadow-sm shrink-0">
-            <PieChart size={20} />
-            <span className="text-[10px] font-bold">목양 통계</span>
-          </button>
-        )}
-      </div>
-
-      {/* Tabs */}
-      <div className="flex bg-surface-container-lowest p-1.5 rounded-[1.25rem] shadow-sm">
-        {[
-          { id: 'all', label: '전체' },
-          { id: 'ministry', label: '사역' },
-          { id: 'forest', label: '숲그룹' }
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveMembersTab(tab.id)}
-            className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-all ${
-              activeMembersTab === tab.id 
-                ? 'bg-white shadow-sm text-primary' 
-                : 'text-on-surface-variant hover:text-on-surface hover:bg-white/50'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Search Bar */}
-      <div className="relative group">
-        <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-          <Search className="text-outline group-focus-within:text-primary transition-colors" size={20} />
-        </div>
-        <input
-          type="text"
-          placeholder="이름으로 검색하세요..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-14 pr-5 py-4 bg-surface-container-lowest squircle shadow-[0_4px_20px_rgba(0,0,0,0.03)] border-none focus:ring-2 focus:ring-primary/30 transition-all font-body text-on-surface placeholder:text-outline-variant outline-none"
-        />
-      </div>
-
-      {searchQuery ? (
-        <div className="bg-surface-container-lowest p-3 squircle shadow-sm">
-          {searchResults.length > 0 ? (
-            <div className="space-y-1">
-              {searchResults.map((member: any) => (
-                <MemberRow key={member.uid} member={member} forests={forests} onClick={() => onMemberClick?.(member)} />
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-10 opacity-70">
-              <UserCircle size={40} className="text-outline mb-3" />
-              <p className="text-on-surface-variant text-sm font-medium">검색 결과가 없습니다.</p>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {activeMembersTab === 'all' && (
-            <div className="bg-surface-container-lowest p-3 squircle shadow-sm space-y-1">
-              {users.map((member: any) => (
-                <MemberRow key={member.uid} member={member} forests={forests} onClick={() => onMemberClick?.(member)} />
-              ))}
-            </div>
-          )}
-
-          {activeMembersTab === 'ministry' && (
-            <div className="space-y-6">
-              {ministries.map(ministry => {
-                const teamMembers = users.filter((u: any) => u.ministry === ministry);
-                if (teamMembers.length === 0) return null;
-                return (
-                  <div key={ministry} className="bg-surface-container-lowest p-5 squircle shadow-sm">
-                    <h3 className="font-bold text-on-surface text-lg tracking-tight mb-4 flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-primary"></span> {ministry}
-                    </h3>
-                    <div className="space-y-1">
-                      {teamMembers.map((member: any) => (
-                        <MemberRow key={member.uid} member={member} forests={forests} onClick={() => onMemberClick?.(member)} />
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {activeMembersTab === 'forest' && (
-            <div className="space-y-4">
-              {forests.map((forest: any) => {
-                const forestMembers = users.filter((u: any) => u.forest_id === forest.forest_id);
-                const leader = users.find((u: any) => u.forest_id === forest.forest_id && u.role === 'leader');
-                const leaderName = leader ? leader.name : '공석';
-                const isExpanded = expandedForests[forest.forest_id];
-
-                return (
-                  <div key={forest.forest_id} className="bg-surface-container-lowest p-5 squircle shadow-sm relative overflow-hidden transition-all duration-300 border border-transparent hover:border-surface-container-low">
-                    <div 
-                      className="flex justify-between items-center cursor-pointer select-none"
-                      onClick={() => toggleForest(forest.forest_id)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="text-3xl bg-surface-container p-3 rounded-2xl shadow-inner border border-surface-container-high/50">
-                          {getForestEmoji(forest.forest_id)}
-                        </div>
-                        <div className="flex flex-col">
-                          <h3 className="font-extrabold text-on-surface text-lg">{forest.name}</h3>
-                          <div className="flex items-center gap-2 text-xs text-on-surface-variant font-bold mt-0.5">
-                            <span>{forestMembers.length}명</span>
-                            <span className="w-1 h-1 bg-outline-variant rounded-full"></span>
-                            <span className="flex items-center gap-0.5">👑 {leaderName}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center transition-transform duration-300">
-                        <ChevronRight size={20} className={`text-on-surface-variant transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`} />
-                      </div>
-                    </div>
-                    
-                    <div className={`grid transition-all duration-500 ease-in-out ${isExpanded ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0'}`}>
-                      <div className="overflow-hidden space-y-1">
-                        <div className="pt-2 border-t border-surface-container-low space-y-1 gap-1 flex flex-col">
-                          {forestMembers.map((member: any) => (
-                            <MemberRow key={member.uid} member={member} forests={forests} onClick={() => onMemberClick?.(member)} />
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
+
+
 
 const ForestBoardView = ({ user, forestId, forests, users, forestPosts, onBack }: any) => {
   const forest = forests.find((f: any) => f.forest_id === forestId);
@@ -1611,398 +1303,8 @@ const AdminFinanceManagementView = ({ users, fees, onBack, onShowToast }: any) =
     </div>
   );
 };
-
-const AdminUserManagementView = ({ users, onBack, onShowToast }: any) => {
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [editProfile, setEditProfile] = useState<any>(null);
-
-  const handleSelectUser = (u: any) => {
-    setSelectedUser(u);
-    setEditProfile({
-      name: u.name || '',
-      birthdate: u.birthdate || '',
-      gender: u.gender || '',
-      forest_id: u.forest_id || '',
-      ministry: u.ministry || '',
-      role: u.role || 'member',
-      score: u.score || 0
-    });
-  };
-
-  const handleSaveProfile = async () => {
-    if (!selectedUser) return;
-    try {
-      const userRef = doc(firestoreDb, 'users', selectedUser.uid);
-      await updateDoc(userRef, {
-        name: editProfile.name,
-        birthdate: editProfile.birthdate,
-        gender: editProfile.gender,
-        forest_id: editProfile.forest_id,
-        ministry: editProfile.ministry,
-        role: editProfile.role,
-        score: Number(editProfile.score) || 0
-      });
-      onShowToast('프로필 정보가 수정되었습니다.');
-      setSelectedUser({ ...selectedUser, ...editProfile, score: Number(editProfile.score) || 0 });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${selectedUser.uid}`);
-    }
-  };
-
-  const handlePermissionToggle = async (userId: string, menu: string, currentValue: boolean) => {
-    try {
-      const userRef = doc(firestoreDb, 'users', userId);
-      await updateDoc(userRef, {
-        [`permissions.${menu}`]: !currentValue
-      });
-      onShowToast('권한이 변경되었습니다.');
-      setSelectedUser({
-        ...selectedUser,
-        permissions: {
-          ...selectedUser.permissions,
-          [menu]: !currentValue
-        }
-      });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
-    }
-  };
-
-  if (selectedUser) {
-    const permissions = selectedUser.permissions || {};
-    const menuItems = [
-      { id: 'survey', label: '설문조사 관리' },
-      { id: 'finance', label: '회비 관리' },
-      { id: 'schedule', label: '일정 관리' },
-      { id: 'forest', label: '숲 관리' },
-      { id: 'attendance', label: '출석 관리' },
-    ];
-
-    return (
-      <div className="absolute inset-0 bg-surface z-[70] flex flex-col min-h-screen overflow-y-auto pb-24">
-        <header className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-surface-container-highest">
-          <div className="flex items-center px-2 py-3">
-            <button onClick={() => setSelectedUser(null)} className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
-              <ChevronLeft size={24} />
-            </button>
-            <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">회원 관리: {selectedUser.name}</h1>
-          </div>
-        </header>
-        <div className="p-6 space-y-6">
-          
-          <div className="bg-surface-container-lowest p-6 rounded-2xl border border-surface-container-low shadow-sm space-y-4">
-            <h3 className="text-sm font-bold text-outline uppercase tracking-widest mb-4">프로필 수정</h3>
-            
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-bold text-on-surface-variant mb-1 block">이름</label>
-                <input type="text" value={editProfile.name} onChange={e => setEditProfile({...editProfile, name: e.target.value})} className="w-full bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-on-surface-variant mb-1 block">생년월일</label>
-                  <input type="date" value={editProfile.birthdate} onChange={e => setEditProfile({...editProfile, birthdate: e.target.value})} className="w-full bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary" />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-on-surface-variant mb-1 block">성별</label>
-                  <select value={editProfile.gender} onChange={e => setEditProfile({...editProfile, gender: e.target.value})} className="w-full bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary">
-                    <option value="">선택 안함</option>
-                    <option value="male">남성</option>
-                    <option value="female">여성</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-on-surface-variant mb-1 block">소속 사역팀</label>
-                  <select value={editProfile.ministry || ''} onChange={e => setEditProfile({...editProfile, ministry: e.target.value})} className="w-full bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary">
-                    <option value="">사역팀 없음</option>
-                    <option value="예배팀">예배팀</option>
-                    <option value="새가족팀">새가족팀</option>
-                    <option value="기획팀">기획팀</option>
-                    <option value="선교봉사팀">선교봉사팀</option>
-                    <option value="관리팀">관리팀</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-               <div>
-                  <label className="text-xs font-bold text-on-surface-variant mb-1 block">소속 숲</label>
-                  <select value={editProfile.forest_id} onChange={e => setEditProfile({...editProfile, forest_id: e.target.value})} className="w-full bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary">
-                    <option value="">소속 없음</option>
-                    {FOREST_GROUPS.map((f: any) => (
-                      <option key={f.forest_id} value={f.forest_id}>{f.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-on-surface-variant mb-1 block">등급 (Role)</label>
-                  <select value={editProfile.role} onChange={e => setEditProfile({...editProfile, role: e.target.value})} className="w-full bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary">
-                    <option value="member">일반 (member)</option>
-                    <option value="leader">리더 (leader)</option>
-                    <option value="admin">관리자 (admin)</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-on-surface-variant mb-1 block">미션 점수</label>
-                <input type="number" value={editProfile.score} onChange={e => setEditProfile({...editProfile, score: e.target.value})} className="w-full bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary" />
-              </div>
-              <button onClick={handleSaveProfile} className="w-full mt-2 py-3 bg-primary text-on-primary rounded-xl font-bold shadow-sm active:scale-95 transition-all">
-                프로필 정보 저장
-              </button>
-            </div>
-          </div>
-
-          <div className="bg-surface-container-lowest p-6 rounded-2xl border border-surface-container-low shadow-sm">
-            <h3 className="text-sm font-bold text-outline uppercase tracking-widest mb-4">메뉴별 권한 설정</h3>
-            <div className="space-y-4">
-              {menuItems.map(item => (
-                <div key={item.id} className="flex items-center justify-between p-3 bg-surface-container-low rounded-xl">
-                  <span className="font-bold text-on-surface">{item.label}</span>
-                  <button 
-                    onClick={() => handlePermissionToggle(selectedUser.uid, item.id, permissions[item.id])}
-                    className={`w-12 h-6 rounded-full transition-colors relative ${permissions[item.id] ? 'bg-primary' : 'bg-surface-container-high'}`}
-                  >
-                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${permissions[item.id] ? 'translate-x-7' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-          <p className="text-xs text-on-surface-variant text-center px-4">
-            권한을 부여받은 사용자는 해당 메뉴의 생성, 수정, 삭제 권한을 갖게 됩니다.<br/>관리자(admin)는 이미 모든 권한을 가지고 있습니다.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="absolute inset-0 bg-surface z-[60] flex flex-col min-h-screen overflow-y-auto pb-24">
-      <header className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-surface-container-highest">
-        <div className="flex items-center px-2 py-3">
-          <button onClick={onBack} className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
-            <ChevronLeft size={24} />
-          </button>
-          <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">사용자 계정 관리</h1>
-        </div>
-      </header>
-      <div className="p-6 space-y-4">
-        {users.map((u: any) => (
-          <div 
-            key={u.uid} 
-            onClick={() => handleSelectUser(u)}
-            className="bg-surface-container-lowest p-4 rounded-2xl border border-surface-container-low shadow-sm flex items-center justify-between hover:border-primary transition-colors cursor-pointer"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-primary-container text-on-primary-container rounded-full flex items-center justify-center font-bold">
-                {u.name.charAt(0)}
-              </div>
-              <div>
-                <p className="font-bold text-on-surface">{u.name}</p>
-                <p className="text-xs text-on-surface-variant">{u.email}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${u.role === 'admin' ? 'bg-error-container text-on-error-container' : u.role === 'leader' ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-on-surface-variant'}`}>
-                {u.role || 'member'}
-              </span>
-              <ChevronRight size={20} className="text-outline" />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-const MyPageView = ({ user, forests, attendance, onBack, onShowToast, onLogout, onNavigateToAdmin }: any) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editPhone, setEditPhone] = useState(user.phone || '');
-  const [editBio, setEditBio] = useState(user.bio || '');
-
-  const forestName = forests?.find((f: any) => f.forest_id === user.forest_id)?.name || '소속 없음';
-  
-  const userActivities = attendance
-    .filter((a: any) => a.uid === user.uid)
-    .sort((a: any, b: any) => b.date?.seconds - a.date?.seconds)
-    .slice(0, 3);
-
-  const handleSaveProfile = async () => {
-    try {
-      const userRef = doc(firestoreDb, 'users', user.uid);
-      await updateDoc(userRef, {
-        phone: editPhone,
-        bio: editBio
-      });
-      onShowToast('프로필이 수정되었습니다.');
-      setIsEditing(false);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`);
-    }
-  };
-
-  return (
-    <div className="absolute inset-0 bg-surface z-[60] flex flex-col min-h-screen overflow-y-auto pb-40">
-      {/* Top Navigation Bar */}
-      <header className="fixed top-0 left-0 right-0 w-full z-50 bg-white/80 dark:bg-stone-900/80 backdrop-blur-xl shadow-sm dark:shadow-none">
-        <div className="flex justify-between items-center px-6 py-4 w-full max-w-md mx-auto">
-          <button onClick={onBack} className="text-stone-500 hover:opacity-80 transition">
-            <Menu size={24} />
-          </button>
-          <h1 className="font-headline font-bold tracking-tight text-xl text-emerald-700 dark:text-emerald-400">마이페이지</h1>
-          <button className="text-stone-500 hover:opacity-80 transition">
-            <Bell size={24} />
-          </button>
-        </div>
-      </header>
-
-      <main className="max-w-md mx-auto px-6 pt-24 space-y-8 w-full">
-        {/* User Profile Header */}
-        <section className="flex items-center gap-6">
-          <div className="relative">
-            <div className="w-24 h-24 rounded-full overflow-hidden shadow-lg border-4 border-white bg-primary-container flex items-center justify-center text-3xl font-bold text-on-primary-container">
-              {user.photoURL || user.profile_image ? (
-                <img alt="사용자 프로필" className="w-full h-full object-cover" src={user.photoURL || user.profile_image} referrerPolicy="no-referrer" />
-              ) : (
-                <span>{user.name.charAt(0)}</span>
-              )}
-            </div>
-            <button 
-              onClick={() => setIsEditing(!isEditing)}
-              className={`absolute bottom-0 right-0 p-2 rounded-full text-on-primary shadow-md border-2 border-white flex items-center justify-center transition-colors ${isEditing ? 'bg-emerald-600' : 'bg-primary'}`}
-            >
-              <FileEdit size={14} />
-            </button>
-          </div>
-          <div className="flex-1">
-            <p className="text-primary font-headline font-extrabold text-2xl tracking-tight">{user.name}</p>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="bg-primary-container text-on-primary-container px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">{forestName}</span>
-            </div>
-            {isEditing ? (
-              <input 
-                value={editBio}
-                onChange={e => setEditBio(e.target.value)}
-                placeholder="자기소개를 입력하세요."
-                className="w-full mt-2 text-sm bg-surface-container-low border-b border-primary focus:outline-none py-1"
-              />
-            ) : (
-              <p className="text-on-surface-variant text-sm mt-1 font-medium italic">
-                {user.bio || "함께 믿음으로 성장합니다."}
-              </p>
-            )}
-          </div>
-        </section>
-
-        {/* Edit Mode Fields */}
-        {isEditing && (
-          <section className="bg-surface-container-lowest p-6 rounded-[2.5rem] shadow-sm space-y-4 border border-primary/10">
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold text-outline uppercase tracking-widest px-1">연락처</label>
-              <input 
-                type="tel"
-                value={editPhone}
-                onChange={e => setEditPhone(e.target.value)}
-                placeholder="010-0000-0000"
-                className="w-full p-4 bg-surface-container-low rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
-            </div>
-            <button 
-              onClick={handleSaveProfile}
-              className="w-full py-4 bg-primary text-on-primary rounded-2xl font-bold shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
-            >
-              저장하기
-            </button>
-          </section>
-        )}
-
-        {/* Stats Widget */}
-        <section className="grid grid-cols-2 gap-4">
-          <div className="bg-surface-container-lowest p-6 rounded-2xl flex flex-col items-center text-center shadow-[0px_20px_40px_rgba(46,47,45,0.06)]">
-            <div className="bg-secondary-container p-3 rounded-full mb-3">
-              <Award className="text-on-secondary-container" size={24} />
-            </div>
-            <p className="text-xs font-bold text-outline uppercase tracking-widest mb-1">나의 배지</p>
-            <p className="text-2xl font-headline font-extrabold text-on-surface">{user.badges?.length || 0}</p>
-          </div>
-          <div className="bg-surface-container-lowest p-6 rounded-2xl flex flex-col items-center text-center shadow-[0px_20px_40px_rgba(46,47,45,0.06)]">
-            <div className="bg-primary-container p-3 rounded-full mb-3">
-              <CheckCircle2 className="text-on-primary-container" size={24} />
-            </div>
-            <p className="text-xs font-bold text-outline uppercase tracking-widest mb-1">올해 출석률</p>
-            <p className="text-2xl font-headline font-extrabold text-on-surface">{user.attendance_rate || 0}%</p>
-          </div>
-        </section>
-
-        {/* Activity Timeline */}
-        <section className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-headline font-extrabold tracking-tight">나의 활동 기록</h2>
-            <span onClick={() => onShowToast('활동 기록 전체보기로 이동합니다.')} className="text-primary text-sm font-bold cursor-pointer">모두 보기</span>
-          </div>
-          <div className="relative space-y-8 before:content-[''] before:absolute before:left-3 before:top-2 before:bottom-2 before:w-[2px] before:bg-surface-container-high">
-            {userActivities.length > 0 ? (
-              userActivities.map((activity: any, idx: number) => (
-                <div key={activity.id || idx} className="relative pl-10">
-                  <div className={`absolute left-0 top-1.5 w-6 h-6 rounded-full flex items-center justify-center ring-4 ring-surface ${
-                    activity.type === '주일예배' ? 'bg-primary' : 
-                    activity.type === '프로그램신청' ? 'bg-secondary' : 'bg-tertiary'
-                  }`}>
-                    {activity.type === '주일예배' && <Calendar className="text-white" size={14} />}
-                    {activity.type === '프로그램신청' && <Heart className="text-white" size={14} />}
-                    {activity.type !== '주일예배' && activity.type !== '프로그램신청' && <BookOpen className="text-white" size={14} />}
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-outline uppercase tracking-widest mb-1">
-                      {activity.date?.toDate ? activity.date.toDate().toLocaleString() : 
-                       (activity.date?.seconds ? new Date(activity.date.seconds * 1000).toLocaleString() : '날짜 정보 없음')}
-                    </p>
-                    <h4 className="font-bold text-on-surface">{activity.type}</h4>
-                    <p className="text-on-surface-variant text-sm mt-1">
-                      {activity.program_title || activity.status || '활동 완료'}
-                    </p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-10 text-on-surface-variant text-sm">
-                활동 기록이 없습니다.
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Settings & Actions */}
-        <section className="space-y-3 pt-4">
-          {(user.role === 'admin' || user.email === 'jumphorse@nate.com' || user.email === 'seokgwan.ms01@gmail.com' || user.uid === 'sfViap2UZ2alO1kzinMETlcLCxv1') && (
-            <button onClick={onNavigateToAdmin} className="w-full flex items-center justify-between p-5 bg-primary/5 border border-primary/20 rounded-2xl hover:bg-primary/10 transition-colors">
-              <div className="flex items-center gap-4">
-                <Lock className="text-primary" size={24} />
-                <span className="font-bold text-primary">관리자 권한 설정</span>
-              </div>
-              <ChevronRight className="text-primary" size={24} />
-            </button>
-          )}
-          <button onClick={() => onShowToast('계정 설정 페이지로 이동합니다.')} className="w-full flex items-center justify-between p-5 bg-surface-container-low rounded-2xl hover:bg-surface-container-high transition-colors">
-            <div className="flex items-center gap-4">
-              <Settings className="text-on-surface-variant" size={24} />
-              <span className="font-bold text-on-surface">계정 설정</span>
-            </div>
-            <ChevronRight className="text-outline" size={24} />
-          </button>
-          <button onClick={onLogout} className="w-full flex items-center justify-between p-5 bg-surface-container-low rounded-2xl hover:bg-error-container/10 transition-colors group">
-            <div className="flex items-center gap-4">
-              <LogOut className="text-error" size={24} />
-              <span className="font-bold text-error">로그아웃</span>
-            </div>
-          </button>
-        </section>
-      </main>
-    </div>
-  );
-};
+
+
 
 function RegistrationView({ forests, onComplete, user }: any) {
   const [birthdate, setBirthdate] = useState('');
@@ -2117,7 +1419,7 @@ function RegistrationView({ forests, onComplete, user }: any) {
   );
 }
 
-function MenuButton({ icon, label, hoverBg, onClick }: any) {
+export function MenuButton({ icon, label, hoverBg, onClick }: any) {
   return (
     <div className="flex flex-col items-center gap-2 cursor-pointer group" onClick={onClick}>
       <div className={`w-14 h-14 bg-surface-container-lowest shadow-sm rounded-2xl flex items-center justify-center transition-colors ${hoverBg}`}>
@@ -2128,7 +1430,7 @@ function MenuButton({ icon, label, hoverBg, onClick }: any) {
   );
 }
 
-function ScheduleItem({ month, day, dDay, time, title, location, dDayClass, active }: any) {
+export function ScheduleItem({ month, day, dDay, time, title, location, dDayClass, active }: any) {
   return (
     <div className="bg-surface-container-lowest p-6 squircle flex items-center gap-6 group hover:bg-surface-container-low transition-colors duration-300 shadow-sm cursor-pointer">
       <div className={`flex flex-col items-center justify-center ${!active ? 'opacity-60' : ''}`}>
@@ -2169,7 +1471,7 @@ function BottomNavItem({ icon, label, id, activeTab, onClick }: any) {
   );
 }
 
-const MemberRow = ({ member, forests, onClick }: any) => {
+export const MemberRow = ({ member, forests, onClick }: any) => {
   const forestName = forests?.find((f: any) => f.forest_id === member.forest_id)?.name || '소속 없음';
   
   const getMinistryBadge = (ministry: string) => {
@@ -2222,1466 +1524,18 @@ const MemberRow = ({ member, forests, onClick }: any) => {
     </div>
   );
 };
+
+
 
-const ProgramView = ({ user, programs, onNavigateToDetail, onNavigateToAdd, onShowToast }: { user: any, programs: any[], onNavigateToDetail: (id: string) => void, onNavigateToAdd: () => void, onShowToast: (msg: string) => void }) => {
-  const [activeTab, setActiveTab] = useState('전체');
-  const categories = ['전체', '사역', '교육/훈련', '봉사', '선교', '동아리'];
 
-  const filteredPrograms = activeTab === '전체' 
-    ? programs 
-    : programs.filter(p => p.type === activeTab || p.category === activeTab);
-
-  return (
-    <div className="flex flex-col h-full relative">
-      {/* Category Tabs */}
-      <div className="sticky top-0 z-40 bg-surface/80 backdrop-blur-md border-b border-surface-container-highest flex overflow-x-auto px-4 py-3 gap-2 no-scrollbar">
-        {categories.map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all ${
-              activeTab === tab 
-                ? 'bg-primary text-on-primary shadow-sm shadow-primary/20 scale-105' 
-                : 'font-medium text-on-surface-variant hover:text-on-surface'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1">
-        {/* Program List */}
-        <div className="p-5 space-y-6">
-          
-          {filteredPrograms.length === 0 && (
-            <div className="text-center py-10 text-on-surface-variant text-sm">
-              해당 카테고리의 프로그램이 없습니다.
-            </div>
-          )}
-
-          {filteredPrograms.map(program => (
-            <article key={program.id} className="bg-surface-container-lowest rounded-3xl overflow-hidden shadow-sm border border-surface-container-low group cursor-pointer hover:shadow-md transition-all duration-300">
-              <div className="relative h-48 overflow-hidden bg-surface-container-low">
-                <img src={program.image} alt={program.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
-                <div className="absolute top-4 left-4 flex gap-2">
-                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider shadow-sm ${
-                    program.status === '모집중' ? 'bg-primary text-on-primary' : 
-                    program.status === '마감임박' ? 'bg-error text-on-error' : 
-                    'bg-secondary text-on-secondary'
-                  }`}>{program.status}</span>
-                  {program.dDay && (
-                    <span className="bg-surface/90 backdrop-blur-sm text-on-surface text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm">{program.dDay}</span>
-                  )}
-                </div>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); onShowToast('관심 프로그램으로 등록되었습니다.'); }}
-                  className="absolute top-4 right-4 w-8 h-8 bg-surface/90 backdrop-blur-sm rounded-full flex items-center justify-center text-on-surface-variant hover:text-error transition-colors shadow-sm"
-                >
-                  <Heart size={18} />
-                </button>
-              </div>
-              <div className="p-5">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-bold text-tertiary">{program.type || program.category}</span>
-                  <span className="w-1 h-1 rounded-full bg-surface-container-highest"></span>
-                  <span className="text-xs font-medium text-on-surface-variant">{program.host}</span>
-                </div>
-                <h3 className="text-lg font-bold text-on-surface mb-2 tracking-tight group-hover:text-primary transition-colors">{program.title}</h3>
-                
-                <div className="space-y-1.5 mb-5">
-                  <div className="flex items-center gap-2 text-sm text-on-surface-variant">
-                    <Calendar size={16} className="text-outline" />
-                    <span>{program.date}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-on-surface-variant">
-                    <MapPin size={16} className="text-outline" />
-                    <span>{program.location}</span>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <button onClick={() => onNavigateToDetail(program.id)} className="flex-1 bg-surface-container-low text-on-surface py-2.5 rounded-xl text-sm font-bold hover:bg-surface-container transition-colors">상세보기</button>
-                  <button onClick={(e) => { e.stopPropagation(); onShowToast('신청 페이지로 이동합니다.'); }} className="flex-1 bg-primary text-on-primary py-2.5 rounded-xl text-sm font-bold hover:bg-primary-dim transition-colors shadow-sm shadow-primary/20">신청하기</button>
-                </div>
-              </div>
-            </article>
-          ))}
-
-        </div>
-
-        {/* Recommendation Section */}
-        <div className="mt-4 mb-8 px-5">
-          <div className="bg-secondary-container/50 rounded-3xl p-6 relative overflow-hidden">
-            <div className="absolute -right-6 -top-6 w-32 h-32 bg-secondary/20 rounded-full blur-2xl"></div>
-            <div className="relative z-10">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="text-secondary" size={20} />
-                <span className="text-xs font-bold text-secondary uppercase tracking-wider">Pick for you</span>
-              </div>
-              <h3 className="text-lg font-bold text-on-surface mb-1">나에게 맞는 프로그램을 찾아보세요!</h3>
-              <p className="text-sm text-on-surface-variant mb-4">관심사를 설정하면 맞춤 프로그램을 추천해 드립니다.</p>
-              
-              <div className="flex flex-wrap gap-2">
-                <span className="bg-surface text-on-surface text-xs font-medium px-3 py-1.5 rounded-lg border border-surface-container-highest shadow-sm">#찬양</span>
-                <span className="bg-surface text-on-surface text-xs font-medium px-3 py-1.5 rounded-lg border border-surface-container-highest shadow-sm">#미디어</span>
-                <span className="bg-surface text-on-surface text-xs font-medium px-3 py-1.5 rounded-lg border border-surface-container-highest shadow-sm">#어린이</span>
-                <button className="bg-surface-container-high text-on-surface text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-surface-container-highest transition-colors">+</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Floating Action Button for Admins */}
-      {user?.role === 'admin' && (
-        <button 
-          onClick={onNavigateToAdd}
-          className="fixed bottom-24 right-6 w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg shadow-primary/30 flex items-center justify-center active:scale-90 transition-transform z-50"
-        >
-          <Plus size={28} />
-        </button>
-      )}
-    </div>
-  );
-};
-
-const ProgramAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToast: (msg: string) => void }) => {
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    type: '사역',
-    host: '',
-    date: '',
-    location: '',
-    image: 'https://picsum.photos/seed/program/800/400',
-    status: '모집중',
-    dDay: ''
-  });
-  
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-
-  const categories = ['사역', '교육/훈련', '봉사', '선교', '동아리'];
-  const statuses = ['모집중', '마감임박', '모집완료'];
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      onShowToast('이미지 크기는 5MB 이하여야 합니다.');
-      return;
-    }
-
-    setIsUploading(true);
-    try {
-      const storageRef = ref(storage, `programs/${Date.now()}_${file.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
-
-      uploadTask.on(
-        'state_changed',
-        () => {},
-        (error) => {
-          console.error('Upload error:', error);
-          onShowToast('이미지 업로드 중 오류가 발생했습니다.');
-          setIsUploading(false);
-        },
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          setFormData({ ...formData, image: downloadURL });
-          setIsUploading(false);
-          onShowToast('이미지가 성공적으로 업로드되었습니다.');
-        }
-      );
-    } catch (error) {
-      console.error(error);
-      setIsUploading(false);
-      onShowToast('이미지 업로드에 실패했습니다.');
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.title || !formData.host || !formData.date) {
-      onShowToast('필수 정보를 모두 입력해주세요.');
-      return;
-    }
-
-    try {
-      await addDoc(collection(firestoreDb, 'programs'), {
-        ...formData,
-        createdAt: Timestamp.now()
-      });
-      onShowToast('프로그램이 성공적으로 추가되었습니다.');
-      onBack();
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'programs');
-    }
-  };
-
-  return (
-    <div className="absolute inset-0 bg-surface z-[60] flex flex-col min-h-screen overflow-y-auto pb-24">
-      <header className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-surface-container-highest">
-        <div className="flex items-center px-2 py-3">
-          <button onClick={onBack} className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
-            <ChevronLeft size={24} />
-          </button>
-          <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">프로그램 추가</h1>
-        </div>
-      </header>
-
-      <form onSubmit={handleSubmit} className="p-6 space-y-6">
-        <div className="space-y-4">
-          <div className="bg-surface-container-lowest p-5 rounded-3xl border border-surface-container-low shadow-sm space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">카테고리</label>
-              <div className="flex flex-wrap gap-2">
-                {categories.map(cat => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setFormData({...formData, type: cat})}
-                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                      formData.type === cat 
-                        ? 'bg-primary text-on-primary shadow-sm' 
-                        : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">프로그램 명</label>
-              <input 
-                type="text" 
-                value={formData.title}
-                onChange={(e) => setFormData({...formData, title: e.target.value})}
-                placeholder="예: 2026 여름 단기선교 (태국)"
-                className="w-full bg-surface-container-high text-on-surface p-4 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">주관 / 호스트</label>
-              <input 
-                type="text" 
-                value={formData.host}
-                onChange={(e) => setFormData({...formData, host: e.target.value})}
-                placeholder="예: 청년부 주관"
-                className="w-full bg-surface-container-high text-on-surface p-4 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
-              />
-            </div>
-          </div>
-
-          <div className="bg-surface-container-lowest p-5 rounded-3xl border border-surface-container-low shadow-sm space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">일정</label>
-                <input 
-                  type="text" 
-                  value={formData.date}
-                  onChange={(e) => setFormData({...formData, date: e.target.value})}
-                  placeholder="예: 7.25(목) - 8.1(목)"
-                  className="w-full bg-surface-container-high text-on-surface p-4 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">D-Day</label>
-                <input 
-                  type="text" 
-                  value={formData.dDay}
-                  onChange={(e) => setFormData({...formData, dDay: e.target.value})}
-                  placeholder="예: D-15"
-                  className="w-full bg-surface-container-high text-on-surface p-4 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">장소</label>
-              <input 
-                type="text" 
-                value={formData.location}
-                onChange={(e) => setFormData({...formData, location: e.target.value})}
-                placeholder="예: 태국 치앙마이 일대"
-                className="w-full bg-surface-container-high text-on-surface p-4 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
-              />
-            </div>
-          </div>
-
-          <div className="bg-surface-container-lowest p-5 rounded-3xl border border-surface-container-low shadow-sm space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">대표 이미지</label>
-              <div 
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full h-48 bg-surface-container-high rounded-2xl border-2 border-dashed border-outline-variant flex flex-col items-center justify-center cursor-pointer hover:bg-surface-container-highest transition-colors relative overflow-hidden group"
-              >
-                {formData.image && formData.image !== 'https://picsum.photos/seed/program/800/400' ? (
-                  <>
-                    <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
-                      <Camera size={32} className="mb-2" />
-                      <span className="text-sm font-bold">이미지 변경</span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-on-surface-variant">
-                    {isUploading ? (
-                      <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <>
-                        <Camera size={32} className="mb-2 text-outline" />
-                        <span className="text-sm font-bold">터치하여 이미지 업로드</span>
-                        <span className="text-xs font-medium mt-1">권장 비율 가로형 (16:9)</span>
-                      </>
-                    )}
-                  </div>
-                )}
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handleImageUpload} 
-                  accept="image/*" 
-                  className="hidden" 
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">모집 상태</label>
-              <div className="flex gap-2">
-                {statuses.map(status => (
-                  <button
-                    key={status}
-                    type="button"
-                    onClick={() => setFormData({...formData, status: status})}
-                    className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all ${
-                      formData.status === status 
-                        ? 'bg-primary text-on-primary shadow-sm' 
-                        : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'
-                    }`}
-                  >
-                    {status}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">상세 설명</label>
-              <textarea 
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-                placeholder="프로그램에 대한 상세 내용을 입력하세요."
-                className="w-full bg-surface-container-high text-on-surface p-4 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium min-h-[120px] resize-none"
-              />
-            </div>
-          </div>
-        </div>
-
-        <button 
-          type="submit"
-          disabled={isUploading}
-          className={`w-full py-4 rounded-2xl font-bold shadow-lg transition-all ${
-            isUploading 
-              ? 'bg-surface-container-highest text-on-surface-variant cursor-not-allowed' 
-              : 'bg-primary text-on-primary shadow-primary/30 active:scale-95'
-          }`}
-        >
-          {isUploading ? '이미지 업로드 중...' : '프로그램 등록하기'}
-        </button>
-      </form>
-    </div>
-  );
-};
-
-const ProgramDetailView = ({ user, programId, programs, onBack, onShowToast }: { user: any, programId: string | null, programs: any[], onBack: () => void, onShowToast: (msg: string) => void }) => {
-  const program = programs.find((p: any) => p.id === programId);
-
-  if (!program) return null;
-
-  const handleApply = async () => {
-    try {
-      const attendanceRef = collection(firestoreDb, 'attendance');
-      await addDoc(attendanceRef, {
-        uid: user.uid,
-        user_name: user.name,
-        date: Timestamp.now(),
-        type: '프로그램신청',
-        program_id: programId,
-        program_title: program.title,
-        status: '신청완료'
-      });
-      onShowToast('신청이 완료되었습니다.');
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'attendance');
-    }
-  };
-
-  return (
-    <div className="flex flex-col bg-surface min-h-screen pb-24">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-surface-container-highest">
-        <div className="flex items-center px-2 py-3">
-          <button onClick={onBack} className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
-            <ChevronLeft size={24} />
-          </button>
-          <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">프로그램 상세</h1>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="flex-1">
-        {/* Hero Image */}
-        <div className="relative h-64 w-full bg-surface-container-low">
-          <img src={program.image} alt={program.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-          <div className="absolute top-4 left-4 flex gap-2">
-            <span className={`text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wider shadow-sm ${
-              program.status === '모집중' ? 'bg-primary text-on-primary' : 
-              program.status === '마감임박' ? 'bg-error text-on-error' : 
-              'bg-secondary text-on-secondary'
-            }`}>{program.status}</span>
-            {program.dDay && (
-              <span className="bg-surface/90 backdrop-blur-sm text-on-surface text-xs font-bold px-3 py-1.5 rounded-full shadow-sm">{program.dDay}</span>
-            )}
-          </div>
-        </div>
-
-        {/* Content Body */}
-        <div className="p-6 -mt-6 relative bg-surface rounded-t-3xl">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm font-bold text-tertiary">{program.type}</span>
-            <span className="w-1 h-1 rounded-full bg-surface-container-highest"></span>
-            <span className="text-sm font-medium text-on-surface-variant">{program.host}</span>
-          </div>
-          
-          <h2 className="text-2xl font-bold text-on-surface mb-6 tracking-tight leading-tight">{program.title}</h2>
-          
-          <div className="space-y-4 mb-8 bg-surface-container-lowest p-5 rounded-2xl border border-surface-container-low">
-            <div className="flex items-start gap-3">
-              <Calendar size={20} className="text-primary mt-0.5" />
-              <div>
-                <p className="text-sm font-bold text-on-surface">일정</p>
-                <p className="text-sm text-on-surface-variant mt-0.5">{program.date}</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <MapPin size={20} className="text-primary mt-0.5" />
-              <div>
-                <p className="text-sm font-bold text-on-surface">장소</p>
-                <p className="text-sm text-on-surface-variant mt-0.5">{program.location}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <section>
-              <h3 className="text-lg font-bold text-on-surface mb-3">프로그램 소개</h3>
-              <p className="text-on-surface-variant text-sm leading-relaxed">
-                {program.desc}
-              </p>
-            </section>
-          </div>
-        </div>
-      </div>
-
-      {/* Fixed Bottom Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-surface/90 backdrop-blur-md border-t border-surface-container-highest p-4 flex gap-3 z-50">
-        <button onClick={() => onShowToast('관심 프로그램으로 등록되었습니다.')} className="w-14 h-14 rounded-2xl bg-surface-container-low flex items-center justify-center text-on-surface-variant hover:text-error transition-colors shadow-sm">
-          <Heart size={24} />
-        </button>
-        <button onClick={handleApply} className="flex-1 bg-primary text-on-primary rounded-2xl text-base font-bold hover:bg-primary-dim transition-colors shadow-md shadow-primary/20">
-          신청하기
-        </button>
-      </div>
-    </div>
-  );
-};
 
 // ==========================================
 // 5. Worship View (온라인 주보)
-// ==========================================
-const WorshipView = ({ user, worships, onNavigateToDetail, onNavigateToAdd, onShowToast }: { user: any, worships: any[], onNavigateToDetail: (id: string) => void, onNavigateToAdd: () => void, onShowToast: (msg: string) => void }) => {
-  const sortedWorships = [...worships].sort((a, b) => {
-    const dateA = a.date?.seconds ? a.date.seconds : new Date(a.date).getTime() / 1000;
-    const dateB = b.date?.seconds ? b.date.seconds : new Date(b.date).getTime() / 1000;
-    return dateB - dateA;
-  });
-
-  const featuredWorship = sortedWorships[0];
-  const previousWorships = sortedWorships.slice(1);
-
-  const formatDate = (date: any) => {
-    if (!date) return '';
-    const d = date.seconds ? new Date(date.seconds * 1000) : new Date(date);
-    return `${d.getMonth() + 1}월 ${d.getDate()}일`;
-  };
-
-  return (
-    <div className="flex flex-col h-full bg-surface-container-lowest pb-32">
-      {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 bg-surface/80 backdrop-blur-md sticky top-0 z-40">
-        <h1 className="text-2xl font-bold text-on-surface tracking-tight">예배</h1>
-        <button className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
-          <MoreVertical size={24} />
-        </button>
-      </header>
-
-      <div className="flex-1 overflow-y-auto px-5 space-y-6 pt-2">
-        {/* Featured Worship Card */}
-        {featuredWorship && (
-          <article 
-            onClick={() => onNavigateToDetail(featuredWorship.id)}
-            className="relative h-[420px] rounded-[32px] overflow-hidden shadow-xl shadow-primary/10 group cursor-pointer"
-          >
-            <img 
-              src={featuredWorship.image || "https://picsum.photos/seed/worship/800/1200"} 
-              alt={featuredWorship.title} 
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-              referrerPolicy="no-referrer"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-            
-            <div className="absolute top-6 right-6">
-              <button className="text-white/80 hover:text-white transition-colors">
-                <MoreVertical size={24} />
-              </button>
-            </div>
-
-            <div className="absolute bottom-10 left-8 right-8 space-y-3">
-              <span className="inline-block bg-white/20 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full border border-white/20">
-                {formatDate(featuredWorship.date)} 예배
-              </span>
-              <h2 className="text-3xl font-bold text-white leading-tight">
-                {featuredWorship.title}
-              </h2>
-              <div className="space-y-1">
-                <p className="text-white/90 font-bold text-sm">{featuredWorship.scripture}</p>
-                <p className="text-white/70 text-xs line-clamp-2 leading-relaxed">
-                  {featuredWorship.scripture_content}
-                </p>
-              </div>
-            </div>
-          </article>
-        )}
-
-        {/* Search Bar */}
-        <div className="relative group">
-          <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
-            <Sparkles size={20} className="text-primary/60 group-focus-within:text-primary transition-colors" />
-          </div>
-          <input 
-            type="text" 
-            placeholder="제목, 부제목, 본문 검색..."
-            className="w-full bg-white border border-surface-container-highest py-4 pl-14 pr-14 rounded-full text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
-          />
-          <div className="absolute inset-y-0 right-5 flex items-center">
-            <button className="p-1 text-on-surface-variant hover:text-primary transition-colors">
-              <SlidersHorizontal size={20} />
-            </button>
-          </div>
-        </div>
-
-        {/* Previous Worship List */}
-        <div className="space-y-4 pb-10">
-          {previousWorships.map(worship => (
-            <div 
-              key={worship.id}
-              onClick={() => onNavigateToDetail(worship.id)}
-              className="bg-white rounded-3xl p-4 flex items-center gap-4 border border-surface-container-highest shadow-sm hover:shadow-md transition-all cursor-pointer group"
-            >
-              <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 bg-surface-container-low">
-                <img 
-                  src={worship.image || "https://picsum.photos/seed/church/200/200"} 
-                  alt={worship.title} 
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-on-surface-variant mb-0.5">{formatDate(worship.date)}</p>
-                <h3 className="text-base font-bold text-on-surface truncate">{worship.title}</h3>
-                <div className="flex items-center gap-3 mt-1 text-xs text-on-surface-variant font-medium">
-                  <div className="flex items-center gap-1">
-                    <User size={12} />
-                    <span>{worship.view_count || 0}</span>
-                  </div>
-                  <span>•</span>
-                  <span>{worship.scripture}</span>
-                </div>
-              </div>
-              <button className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
-                <MoreVertical size={20} />
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Floating Action Button for Admins */}
-      {user?.role === 'admin' && (
-        <button 
-          onClick={onNavigateToAdd}
-          className="fixed bottom-24 right-6 w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg shadow-primary/30 flex items-center justify-center active:scale-90 transition-transform z-50"
-        >
-          <Plus size={28} />
-        </button>
-      )}
-    </div>
-  );
-};
-
-const WorshipAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToast: (msg: string) => void }) => {
-  const [formData, setFormData] = useState<any>({
-    title: '',
-    date: new Date().toISOString().split('T')[0],
-    image: 'https://picsum.photos/seed/worship/800/1200',
-    youtube_url: '',
-    scripture: '',
-    scripture_content: '',
-    participants: [
-      { role: '사회', name: '' },
-      { role: '기도', name: '' },
-      { role: '성경봉독', name: '' },
-      { role: '봉헌기도', name: '' }
-    ],
-    praise: [],
-    announcements: [],
-    status: 'published'
-  });
-  const [isUploading, setIsUploading] = useState(false);
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setIsUploading(true);
-      const fileExt = file.name.split('.').pop();
-      const fileName = `worship_images/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const storageRef = ref(storage, fileName);
-      
-      const uploadTask = await uploadBytesResumable(storageRef, file);
-      const downloadURL = await getDownloadURL(uploadTask.ref);
-      
-      setFormData({...formData, image: downloadURL});
-      onShowToast('이미지가 성공적으로 업로드되었습니다.');
-    } catch (err) {
-      console.error('Upload Error:', err);
-      onShowToast('이미지 업로드에 실패했습니다. (Storage 규칙 확인 요망)');
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleAddParticipant = () => {
-    setFormData({
-      ...formData,
-      participants: [...formData.participants, { role: '', name: '' }]
-    });
-  };
-
-  const handleRemoveParticipant = (index: number) => {
-    const newParticipants = [...formData.participants];
-    newParticipants.splice(index, 1);
-    setFormData({ ...formData, participants: newParticipants });
-  };
-
-  const handleAddPraise = () => {
-    setFormData({
-      ...formData,
-      praise: [...formData.praise, { title: '', link: '' }]
-    });
-  };
-
-  const handleRemovePraise = (index: number) => {
-    const newPraise = [...formData.praise];
-    newPraise.splice(index, 1);
-    setFormData({ ...formData, praise: newPraise });
-  };
-
-  const handleAddAnnouncement = () => {
-    setFormData({
-      ...formData,
-      announcements: [...formData.announcements, { title: '', content: '' }]
-    });
-  };
-
-  const handleRemoveAnnouncement = (index: number) => {
-    const newAnnouncements = [...formData.announcements];
-    newAnnouncements.splice(index, 1);
-    setFormData({ ...formData, announcements: newAnnouncements });
-  };
-
-  const handleSubmit = async () => {
-    if (!formData.title || !formData.date) {
-      onShowToast('제목과 날짜를 입력해주세요.');
-      return;
-    }
-
-    try {
-      await addDoc(collection(firestoreDb, 'worships'), {
-        ...formData,
-        date: Timestamp.fromDate(new Date(formData.date)),
-        view_count: 0,
-        createdAt: Timestamp.now()
-      });
-      onShowToast('예배 정보가 등록되었습니다.');
-      onBack();
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'worships');
-    }
-  };
-
-  return (
-    <div className="absolute inset-0 bg-surface z-[60] flex flex-col min-h-screen overflow-y-auto pb-32">
-      {/* Background Hero */}
-      <div className="relative h-80 shrink-0">
-        <img 
-          src={formData.image} 
-          className="w-full h-full object-cover" 
-          alt="Worship background" 
-          referrerPolicy="no-referrer"
-        />
-        <div className="absolute inset-0 bg-black/40"></div>
-        
-        <div className="absolute top-16 left-4 right-4 z-20 flex flex-col gap-2">
-          <input 
-            type="text" 
-            value={formData.image}
-            onChange={(e) => setFormData({...formData, image: e.target.value})}
-            className="w-full bg-black/40 backdrop-blur-md text-white px-4 py-2 rounded-xl text-xs border border-white/20 outline-none placeholder:text-white/50"
-            placeholder="대표 배경 이미지 URL 입력 (예: https://...)"
-          />
-          <div className="flex justify-end relative">
-            <input 
-              type="file" 
-              accept="image/*" 
-              id="worship-image-upload" 
-              className="hidden" 
-              onChange={handleImageUpload}
-              disabled={isUploading}
-            />
-            <label 
-              htmlFor="worship-image-upload" 
-              className={`bg-white/20 backdrop-blur-md text-white border border-white/30 px-3 py-2 rounded-xl text-xs font-bold shadow-sm cursor-pointer hover:bg-white/30 transition-colors flex items-center gap-1.5 ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
-            >
-              <Camera size={14} />
-              {isUploading ? '업로드 중...' : '기기에서 사진 첨부'}
-            </label>
-          </div>
-        </div>
-
-        <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
-          <button onClick={onBack} className="w-10 h-10 bg-black/20 backdrop-blur-md rounded-full flex items-center justify-center text-white">
-            <X size={24} />
-          </button>
-          <div className="flex gap-2">
-            <button className="w-10 h-10 bg-black/20 backdrop-blur-md rounded-full flex items-center justify-center text-white">
-              <Bookmark size={20} />
-            </button>
-            <button onClick={handleSubmit} className="px-5 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center gap-2 text-white font-bold text-sm border border-white/20">
-              <Send size={18} />
-              <span>배포</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="absolute bottom-8 left-8 right-8 space-y-4">
-          <input 
-            type="text" 
-            value={formData.title}
-            onChange={(e) => setFormData({...formData, title: e.target.value})}
-            placeholder="설교 제목"
-            className="w-full bg-transparent text-white text-4xl font-bold placeholder:text-white/50 outline-none"
-          />
-          <div className="relative inline-block">
-            <input 
-              type="date" 
-              value={formData.date}
-              onChange={(e) => setFormData({...formData, date: e.target.value})}
-              className="bg-white/20 backdrop-blur-md text-white px-4 py-2 rounded-xl border border-white/20 outline-none text-sm font-bold"
-            />
-            <button className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 pointer-events-none">
-              <Camera size={18} />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Form Content */}
-      <div className="px-6 -mt-6 relative z-10 space-y-8">
-        {/* Section Header */}
-        <div className="flex items-center justify-between bg-white/80 backdrop-blur-md p-4 rounded-2xl border border-surface-container-highest shadow-sm">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-bold text-on-surface">섹션 목록</span>
-            <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full">4개의 섹션</span>
-          </div>
-          <button className="text-xs font-bold text-primary bg-primary/5 px-3 py-1.5 rounded-lg">순서 편집</button>
-        </div>
-
-        {/* YouTube Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-600 border border-red-100">
-                <Play size={20} />
-              </div>
-              <h3 className="font-bold text-on-surface">예배 영상 (YouTube)</h3>
-            </div>
-            <a 
-              href="https://m.youtube.com/results?search_query=찬양+예배" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-xs font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg flex items-center gap-1 active:scale-95 transition-transform"
-            >
-              <Search size={14} />
-              유튜브 검색
-            </a>
-          </div>
-          <div className="bg-white rounded-2xl p-5 border border-surface-container-highest shadow-sm">
-            <input 
-              type="text" 
-              value={formData.youtube_url || ''}
-              onChange={(e) => setFormData({...formData, youtube_url: e.target.value})}
-              placeholder="YouTube 동영상 링크를 붙여넣으세요"
-              className="w-full text-sm font-medium text-on-surface placeholder:text-outline outline-none"
-            />
-          </div>
-        </div>
-
-        {/* Scripture Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 border border-green-100">
-                <BookOpen size={20} />
-              </div>
-              <h3 className="font-bold text-on-surface">본문 말씀</h3>
-            </div>
-            <button className="text-on-surface-variant"><MoreHorizontal size={20} /></button>
-          </div>
-          <div className="bg-white rounded-2xl p-5 border border-surface-container-highest shadow-sm space-y-4">
-            <input 
-              type="text" 
-              value={formData.scripture}
-              onChange={(e) => setFormData({...formData, scripture: e.target.value})}
-              placeholder="예: 요한복음 15:1-8"
-              className="w-full text-2xl font-bold text-primary placeholder:text-primary/20 outline-none"
-            />
-            <textarea 
-              value={formData.scripture_content}
-              onChange={(e) => setFormData({...formData, scripture_content: e.target.value})}
-              placeholder="1. 나는 참 포도나무요..."
-              className="w-full min-h-[100px] text-on-surface-variant leading-relaxed outline-none resize-none"
-            />
-          </div>
-        </div>
-
-        {/* Participants Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100">
-                <Users size={20} />
-              </div>
-              <h3 className="font-bold text-on-surface">예배 임사자</h3>
-            </div>
-            <button className="text-on-surface-variant"><MoreHorizontal size={20} /></button>
-          </div>
-          <div className="bg-white rounded-2xl p-4 border border-surface-container-highest shadow-sm space-y-3">
-            {formData.participants.map((p: any, idx: number) => (
-              <div key={idx} className="flex items-center gap-3 group">
-                <div className="p-2 text-on-surface-variant/30"><Menu size={16} /></div>
-                <input 
-                  type="text" 
-                  value={p.role}
-                  onChange={(e) => {
-                    const newP = [...formData.participants];
-                    newP[idx].role = e.target.value;
-                    setFormData({...formData, participants: newP});
-                  }}
-                  className="w-20 bg-surface-container-low px-3 py-2 rounded-xl text-sm font-bold outline-none"
-                  placeholder="역할"
-                />
-                <input 
-                  type="text" 
-                  value={p.name}
-                  onChange={(e) => {
-                    const newP = [...formData.participants];
-                    newP[idx].name = e.target.value;
-                    setFormData({...formData, participants: newP});
-                  }}
-                  className="flex-1 bg-white border border-surface-container-highest px-3 py-2 rounded-xl text-sm outline-none"
-                  placeholder="이름"
-                />
-                <button onClick={() => handleRemoveParticipant(idx)} className="p-2 text-error/40 hover:text-error transition-colors">
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            ))}
-            <button 
-              onClick={handleAddParticipant}
-              className="w-full py-3 flex items-center justify-center gap-2 text-primary font-bold text-sm border-t border-surface-container-low mt-2"
-            >
-              <Plus size={18} />
-              <span>추가</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Praise Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 border border-orange-100">
-                <Music size={20} />
-              </div>
-              <h3 className="font-bold text-on-surface">경배와 찬양</h3>
-            </div>
-            <button className="text-on-surface-variant"><MoreHorizontal size={20} /></button>
-          </div>
-          <div className="bg-white rounded-2xl p-4 border border-surface-container-highest shadow-sm space-y-3">
-            {formData.praise.map((p: any, idx: number) => (
-              <div key={idx} className="flex items-center gap-4 p-4 bg-surface-container-lowest rounded-2xl border border-surface-container-low relative group">
-                <div className="w-12 h-12 rounded-xl bg-error/10 flex items-center justify-center text-error">
-                  <Play size={24} fill="currentColor" />
-                </div>
-                <div className="flex-1 space-y-1">
-                  <input 
-                    type="text" 
-                    value={p.title}
-                    onChange={(e) => {
-                      const newP = [...formData.praise];
-                      newP[idx].title = e.target.value;
-                      setFormData({...formData, praise: newP});
-                    }}
-                    placeholder="곡 제목"
-                    className="w-full font-bold text-on-surface outline-none bg-transparent"
-                  />
-                  <input 
-                    type="text" 
-                    value={p.link}
-                    onChange={(e) => {
-                      const newP = [...formData.praise];
-                      newP[idx].link = e.target.value;
-                      setFormData({...formData, praise: newP});
-                    }}
-                    placeholder="YouTube 링크"
-                    className="w-full text-xs text-on-surface-variant outline-none bg-transparent"
-                  />
-                </div>
-                <button onClick={() => handleRemovePraise(idx)} className="p-2 text-error/40 hover:text-error transition-colors">
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            ))}
-            <button 
-              onClick={handleAddPraise}
-              className="w-full py-3 flex items-center justify-center gap-2 text-primary font-bold text-sm border-t border-surface-container-low mt-2"
-            >
-              <Plus size={18} />
-              <span>추가</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Announcements Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 border border-purple-100">
-                <Megaphone size={20} />
-              </div>
-              <h3 className="font-bold text-on-surface">광고</h3>
-            </div>
-            <button className="text-on-surface-variant"><MoreHorizontal size={20} /></button>
-          </div>
-          <div className="bg-white rounded-2xl p-4 border border-surface-container-highest shadow-sm space-y-3">
-            {formData.announcements.map((a: any, idx: number) => (
-              <div key={idx} className="flex items-center gap-3 group border-b border-surface-container-low last:border-0 pb-3 last:pb-0">
-                <div className="p-2 text-on-surface-variant/30"><Menu size={16} /></div>
-                <div className="flex-1 space-y-1">
-                  <input 
-                    type="text" 
-                    value={a.title}
-                    onChange={(e) => {
-                      const newA = [...formData.announcements];
-                      newA[idx].title = e.target.value;
-                      setFormData({...formData, announcements: newA});
-                    }}
-                    placeholder="광고 제목"
-                    className="w-full font-bold text-on-surface outline-none"
-                  />
-                  <input 
-                    type="text" 
-                    value={a.content}
-                    onChange={(e) => {
-                      const newA = [...formData.announcements];
-                      newA[idx].content = e.target.value;
-                      setFormData({...formData, announcements: newA});
-                    }}
-                    placeholder="광고 내용"
-                    className="w-full text-sm text-on-surface-variant outline-none"
-                  />
-                </div>
-                <button onClick={() => handleRemoveAnnouncement(idx)} className="p-2 text-error/40 hover:text-error transition-colors">
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            ))}
-            <button 
-              onClick={handleAddAnnouncement}
-              className="w-full py-3 flex items-center justify-center gap-2 text-primary font-bold text-sm border-t border-surface-container-low mt-2"
-            >
-              <Plus size={18} />
-              <span>추가</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Add Section Button */}
-        <button className="flex items-center gap-4 px-2 py-4 text-on-surface-variant/50 hover:text-primary transition-colors group">
-          <div className="w-10 h-10 rounded-full border-2 border-dashed border-current flex items-center justify-center group-hover:border-primary">
-            <Plus size={24} />
-          </div>
-          <span className="font-bold text-lg">섹션 추가</span>
-        </button>
-      </div>
-    </div>
-  );
-};
-
-const WorshipDetailView = ({ worshipId, worships, onBack }: { worshipId: string | null, worships: any[], onBack: () => void }) => {
-  const worship = worships.find(w => w.id === worshipId);
-
-  useEffect(() => {
-    if (worshipId) {
-      const updateViewCount = async () => {
-        try {
-          const worshipRef = doc(firestoreDb, 'worships', worshipId);
-          await updateDoc(worshipRef, {
-            view_count: (worship?.view_count || 0) + 1
-          });
-        } catch (err) {
-          console.error('Failed to update view count:', err);
-        }
-      };
-      updateViewCount();
-    }
-  }, [worshipId]);
-
-  if (!worship) return null;
-
-  const formatDate = (date: any) => {
-    if (!date) return '';
-    const d = date.seconds ? new Date(date.seconds * 1000) : new Date(date);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  };
-
-  return (
-    <div className="absolute inset-0 bg-surface z-[60] flex flex-col min-h-screen overflow-y-auto pb-32">
-      {/* Background Hero */}
-      <div className="relative h-80 shrink-0">
-        <img 
-          src={worship.image || "https://picsum.photos/seed/worship/800/1200"} 
-          className="w-full h-full object-cover" 
-          alt="Worship background" 
-          referrerPolicy="no-referrer"
-        />
-        <div className="absolute inset-0 bg-black/40"></div>
-        
-        <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
-          <button onClick={onBack} className="w-10 h-10 bg-black/20 backdrop-blur-md rounded-full flex items-center justify-center text-white">
-            <X size={24} />
-          </button>
-          <div className="flex gap-2">
-            <button className="w-10 h-10 bg-black/20 backdrop-blur-md rounded-full flex items-center justify-center text-white">
-              <Bookmark size={20} />
-            </button>
-            <button className="px-5 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center gap-2 text-white font-bold text-sm border border-white/20">
-              <Send size={18} />
-              <span>공유</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="absolute bottom-8 left-8 right-8 space-y-2">
-          <h2 className="text-white text-4xl font-bold tracking-tight">{worship.title}</h2>
-          <p className="text-white/80 font-bold text-sm bg-white/20 backdrop-blur-md inline-block px-3 py-1 rounded-lg border border-white/20">
-            {formatDate(worship.date)}
-          </p>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="px-6 -mt-6 relative z-10 space-y-8">
-        {/* YouTube Video Section */}
-        {worship.youtube_url && (() => {
-          let embedUrl = worship.youtube_url;
-          const match = worship.youtube_url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
-          if (match?.[1]) embedUrl = `https://www.youtube.com/embed/${match[1]}?rel=0`;
-          return (
-            <div className="rounded-2xl overflow-hidden shadow-sm aspect-video w-full">
-              <iframe 
-                className="w-full h-full"
-                src={embedUrl}
-                title="YouTube video player" 
-                frameBorder="0" 
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                allowFullScreen
-              />
-            </div>
-          );
-        })()}
-
-        {/* Scripture Section */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-3 px-2">
-            <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 border border-green-100">
-              <BookOpen size={20} />
-            </div>
-            <h3 className="font-bold text-on-surface">본문 말씀</h3>
-          </div>
-          <div className="bg-white rounded-2xl p-5 border border-surface-container-highest shadow-sm space-y-4">
-            <h4 className="text-2xl font-bold text-primary">{worship.scripture}</h4>
-            <p className="text-on-surface-variant leading-relaxed whitespace-pre-wrap">
-              {worship.scripture_content}
-            </p>
-          </div>
-        </div>
-
-        {/* Participants Section */}
-        {worship.participants && worship.participants.length > 0 && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 px-2">
-              <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100">
-                <Users size={20} />
-              </div>
-              <h3 className="font-bold text-on-surface">예배 임사자</h3>
-            </div>
-            <div className="bg-white rounded-2xl p-5 border border-surface-container-highest shadow-sm space-y-4">
-              {worship.participants.map((p: any, idx: number) => (
-                <div key={idx} className="flex items-center justify-between border-b border-surface-container-low last:border-0 pb-3 last:pb-0">
-                  <span className="text-on-surface-variant font-bold">{p.role}</span>
-                  <span className="text-on-surface font-bold">{p.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Praise Section */}
-        {worship.praise && worship.praise.length > 0 && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 px-2">
-              <div className="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 border border-orange-100">
-                <Music size={20} />
-              </div>
-              <h3 className="font-bold text-on-surface">경배와 찬양</h3>
-            </div>
-            <div className="space-y-3">
-              {worship.praise.map((p: any, idx: number) => (
-                <a 
-                  key={idx} 
-                  href={p.link} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="bg-white rounded-2xl p-4 flex items-center gap-4 border border-surface-container-highest shadow-sm hover:shadow-md transition-all group"
-                >
-                  <div className="w-12 h-12 rounded-xl bg-error/10 flex items-center justify-center text-error group-hover:scale-110 transition-transform">
-                    <Play size={24} fill="currentColor" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-bold text-on-surface">{p.title}</h4>
-                    <p className="text-xs text-on-surface-variant truncate">{p.link}</p>
-                  </div>
-                  <ChevronRight size={20} className="text-on-surface-variant" />
-                </a>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Announcements Section */}
-        {worship.announcements && worship.announcements.length > 0 && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 px-2">
-              <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 border border-purple-100">
-                <Megaphone size={20} />
-              </div>
-              <h3 className="font-bold text-on-surface">광고</h3>
-            </div>
-            <div className="bg-white rounded-2xl p-5 border border-surface-container-highest shadow-sm space-y-6">
-              {worship.announcements.map((a: any, idx: number) => (
-                <div key={idx} className="space-y-1 border-b border-surface-container-low last:border-0 pb-4 last:pb-0">
-                  <h4 className="font-bold text-on-surface text-lg">{a.title}</h4>
-                  <p className="text-on-surface-variant text-sm leading-relaxed">{a.content}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const KidsView = ({ user, onShowToast }: any) => {
-  return (
-    <div className="pb-32">
-      <div className="pt-6 px-6 space-y-8 max-w-2xl mx-auto">
-        {/* Hero Section: Pastel Forest */}
-        <section className="relative overflow-hidden rounded-xl h-64 flex flex-col justify-end p-8 bg-gradient-to-br from-[#ffefeb] to-[#ffc4b1]">
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-[#fac097]/30 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-0 left-0 -ml-10 -mb-10 w-48 h-48 bg-[#006948]/5 rounded-full blur-2xl"></div>
-          <div className="relative z-10">
-            <span className="inline-block bg-white/40 backdrop-blur-md px-3 py-1 rounded-full text-[12px] font-bold text-[#8b4932] mb-3 tracking-wider font-headline">FOREST3040 KIDS</span>
-            <h2 className="text-3xl font-extrabold text-on-surface leading-tight tracking-tight font-headline">우리 아이들을 위한<br/>따뜻한 숲</h2>
-            <p className="text-on-surface-variant mt-2 text-sm">전문 교사와 함께하는 안전하고 행복한 시간</p>
-          </div>
-          <div className="absolute top-10 right-10 opacity-20">
-            <TreePine size={96} className="text-on-surface" />
-          </div>
-        </section>
-
-        {/* Primary Action: Application Button */}
-        <section>
-          <button onClick={() => onShowToast('돌봄 사전 신청 폼으로 이동합니다.')} className="w-full group bg-gradient-to-r from-primary to-primary-dim text-white h-18 py-5 px-8 rounded-xl shadow-lg flex items-center justify-between transition-transform active:scale-95 duration-200">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                <Baby size={24} className="text-white" />
-              </div>
-              <span className="text-lg font-bold font-headline">돌봄 사전 신청하기</span>
-            </div>
-            <ChevronRight size={24} className="text-white group-hover:translate-x-1 transition-transform" />
-          </button>
-        </section>
-
-        {/* Info Card: Weekly Care Guide */}
-        <section className="bg-white rounded-xl p-8 shadow-[0_20px_40px_rgba(46,47,45,0.06)]">
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="text-xl font-bold text-on-surface font-headline">이번 주 돌봄 안내</h3>
-            <span className="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full text-xs font-bold font-headline">진행 중</span>
-          </div>
-          <div className="space-y-6">
-            <div className="flex items-start gap-5">
-              <div className="w-10 h-10 bg-[#8b4932]/10 rounded-full flex items-center justify-center shrink-0">
-                <MapPin size={20} className="text-[#8b4932]" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1 font-headline">장소</p>
-                <p className="text-lg font-semibold text-on-surface font-headline">비전센터 2층 (키즈룸)</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-5">
-              <div className="w-10 h-10 bg-[#8b4932]/10 rounded-full flex items-center justify-center shrink-0">
-                <Clock size={20} className="text-[#8b4932]" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1 font-headline">시간</p>
-                <p className="text-lg font-semibold text-on-surface font-headline">주일 오후 1:30 ~ 3:30</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-5">
-              <div className="w-10 h-10 bg-[#8b4932]/10 rounded-full flex items-center justify-center shrink-0">
-                <Users size={20} className="text-[#8b4932]" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1 font-headline">대상</p>
-                <p className="text-lg font-semibold text-on-surface font-headline">3세 ~ 미취학 아동</p>
-              </div>
-            </div>
-          </div>
-          <div className="mt-8 pt-8 border-t border-surface-container-low flex items-center justify-between">
-            <div className="flex -space-x-3">
-              <img className="w-10 h-10 rounded-full border-2 border-white object-cover" alt="Teacher 1" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDhiF083HjOk0GpL3SjDq9y4r3U1KlDFB1wnmnPovJ-GjvR3lg9sD4l8q2haAD0vehpDH0oobryl1e0Ep-7Gy4oY7eJRpRxYDP3zyKeTgCyV2pFAR1brjj_L6ihhEg5E5VxFwug6sllKQ1XqYAyXhU9gWCpjLjxK7lTZ7APhEN-6Qw_G8No1vLBeUFYf0Cw6quaXQ8avirMksA53ogQiGoQFaT8Cb1ynpSMLpbQOBw67Y8Q03Bw38WJhmpXETd7aWb_vLERW6_7Dw" referrerPolicy="no-referrer" />
-              <img className="w-10 h-10 rounded-full border-2 border-white object-cover" alt="Teacher 2" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPlpvNbb4XJboVSu2tbfRp9xDLKVJnDPuUMhd2_5wg8LquZXh-QwooKk9Of5qmgquKYF65roFbTo3dvDE2C_OaC1sGRfOJp8XYqPqwgCx4XzeDmxHbKDc9t9HtFci3N9D9KniZk3KO6-nB5m5cYV6paPewDNRGntzELDKLlhRddlzWoadfPXBSeOEbyxuINucZog-BS_QoE1fTsJMXms3BptjGJelXXELxG8w8Pm1yyREgQjPPGdG9kvm4j1WRYr55zEIVwDNm1Q" referrerPolicy="no-referrer" />
-              <div className="w-10 h-10 rounded-full bg-[#fac097] border-2 border-white flex items-center justify-center text-[10px] font-bold text-[#613b1c]">+2</div>
-            </div>
-            <p className="text-sm text-on-surface-variant font-medium">현재 12명의 아이들이 신청했어요</p>
-          </div>
-        </section>
-
-        {/* My Status: Registration History */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <h3 className="text-xl font-bold text-on-surface font-headline">나의 신청 내역</h3>
-            <button onClick={() => onShowToast('전체 내역 페이지로 이동합니다.')} className="text-sm font-semibold text-primary hover:underline">전체보기</button>
-          </div>
-          {/* Empty State Placeholder or Item */}
-          <div className="bg-[#f1f1ee] rounded-xl p-10 flex flex-col items-center justify-center text-center border-2 border-dashed border-[#adadab]/20">
-            <div className="w-16 h-16 bg-[#e3e3df] rounded-full flex items-center justify-center mb-4">
-              <History size={32} className="text-[#767775]" />
-            </div>
-            <p className="text-on-surface-variant font-medium">최근 신청 내역이 없습니다</p>
-            <p className="text-xs text-[#767775] mt-1">우리 아이를 위한 첫 신청을 시작해보세요!</p>
-          </div>
-        </section>
-
-        {/* Gallery / Features Grid */}
-        <section className="grid grid-cols-2 gap-4">
-          <div className="aspect-square rounded-xl bg-[#fac097] overflow-hidden relative group">
-            <img className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt="Play" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDbZCKi3cgC_Fn5j5uhlKWmh3lI4_KwAQaTU-Tyg-6JnqSNBFg1xpue3jQsIn1n0ORZRsBKBLe-iBobY-Ph5jYw8yAwuf8ThG4IryagoU8mhXu4klzPDa9BmGmCXuuTl09n3yA20TyWP0Rvbw8G1lRYjisfx_3RD-Jb_RUHujpnSFiwU8H2k7G_BkX-RdSvdn73G_Oag-GgByCDiVeyXZhimt6ucKIEl8O2yujE9OefkwBA32NLFdNid2cG0cgrg1XLHV9i9wfPNg" referrerPolicy="no-referrer" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent p-4 flex flex-col justify-end">
-              <p className="text-white text-xs font-bold uppercase tracking-widest font-headline">프로그램</p>
-              <p className="text-white font-bold font-headline">오감 놀이</p>
-            </div>
-          </div>
-          <div className="aspect-square rounded-xl bg-[#6bffc1] overflow-hidden relative group">
-            <img className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt="Safety" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBq-w949lDzuA1HLdgMWSKlWpYy9R3hI9wm4BfWw7MMz2MOzgvX9KXoi2moVGHHZYvq4e51ig7a4h-6tjLpdqricBHsA62V93gc2VUdoR-dJr8gc_SdCTV5VQqHE2uOEn0H4mJBEQ4EAj6XHxZw393ACUtKc0LJM0TGBPk7frz3Tn-_LT6uLKaaadVGuRYhmGC__tWQhHfVE3pdZzw_pFTUK2itDxD_A1QmJZR9QZzSbwN4tw-vsbiLHpyVYBVwEe4P5zC8PRW_EA" referrerPolicy="no-referrer" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent p-4 flex flex-col justify-end">
-              <p className="text-white text-xs font-bold uppercase tracking-widest font-headline">안전 관리</p>
-              <p className="text-white font-bold font-headline">실시간 모니터링</p>
-            </div>
-          </div>
-        </section>
-      </div>
-    </div>
-  );
-};
-
-const CalendarView = ({ schedules, onShowToast }: any) => {
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 2, 1)); // March 2026
-  const [selectedDate, setSelectedDate] = useState(new Date(2026, 2, 26)); // March 26, 2026
-
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDayOfMonth = new Date(year, month, 1).getDay();
-
-  const days = [];
-  for (let i = 0; i < firstDayOfMonth; i++) {
-    days.push(null);
-  }
-  for (let i = 1; i <= daysInMonth; i++) {
-    days.push(new Date(year, month, i));
-  }
-
-  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
-  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
-
-  const isSameDate = (d1: Date, d2: Date) => {
-    return d1.getFullYear() === d2.getFullYear() &&
-           d1.getMonth() === d2.getMonth() &&
-           d1.getDate() === d2.getDate();
-  };
-
-  const getSchedulesForDate = (date: Date) => {
-    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    return schedules.filter((s: any) => s.fullDate === dateStr);
-  };
-
-  const selectedSchedules = getSchedulesForDate(selectedDate);
-
-  return (
-    <div className="pb-32 bg-surface min-h-screen">
-      <div className="p-5 space-y-6">
-        {/* Calendar Card */}
-        <div className="bg-surface-container-lowest rounded-3xl p-5 shadow-sm border border-surface-container-low">
-          {/* Month Navigation */}
-          <div className="flex items-center justify-between mb-6">
-            <button onClick={prevMonth} className="p-2 hover:bg-surface-container-low rounded-full transition-colors">
-              <ChevronLeft size={20} className="text-on-surface-variant" />
-            </button>
-            <h2 className="text-lg font-bold text-on-surface font-headline">
-              {year}년 {month + 1}월
-            </h2>
-            <button onClick={nextMonth} className="p-2 hover:bg-surface-container-low rounded-full transition-colors">
-              <ChevronRight size={20} className="text-on-surface-variant" />
-            </button>
-          </div>
-
-          {/* Days of Week */}
-          <div className="grid grid-cols-7 gap-1 mb-2 text-center">
-            {['일', '월', '화', '수', '목', '금', '토'].map((day, i) => (
-              <div key={day} className={`text-xs font-bold ${i === 0 ? 'text-error' : 'text-on-surface-variant'}`}>
-                {day}
-              </div>
-            ))}
-          </div>
-
-          {/* Dates Grid */}
-          <div className="grid grid-cols-7 gap-1">
-            {days.map((date, i) => {
-              if (!date) return <div key={`empty-${i}`} className="h-10" />;
-              
-              const isSelected = isSameDate(date, selectedDate);
-              const isToday = isSameDate(date, new Date(2026, 2, 26)); // Mock today
-              const hasEvents = getSchedulesForDate(date).length > 0;
-              const isSunday = date.getDay() === 0;
-
-              return (
-                <button
-                  key={date.toISOString()}
-                  onClick={() => setSelectedDate(date)}
-                  className={`relative h-10 flex items-center justify-center rounded-full text-sm font-medium transition-colors
-                    ${isSelected ? 'bg-primary text-on-primary font-bold shadow-md' : 'hover:bg-surface-container-low'}
-                    ${!isSelected && isToday ? 'border border-primary text-primary font-bold' : ''}
-                    ${!isSelected && !isToday && isSunday ? 'text-error' : ''}
-                    ${!isSelected && !isToday && !isSunday ? 'text-on-surface' : ''}
-                  `}
-                >
-                  {date.getDate()}
-                  {hasEvents && !isSelected && (
-                    <div className="absolute bottom-1 w-1 h-1 rounded-full bg-secondary"></div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Selected Date Events */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <h3 className="text-lg font-bold text-on-surface font-headline">
-              {selectedDate.getMonth() + 1}월 {selectedDate.getDate()}일 일정
-            </h3>
-          </div>
-
-          {selectedSchedules.length === 0 ? (
-            <div className="bg-surface-container-lowest rounded-2xl p-8 text-center border border-surface-container-low border-dashed">
-              <p className="text-on-surface-variant text-sm font-medium">예정된 일정이 없습니다.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {selectedSchedules.map((schedule: any) => (
-                <div key={schedule.id} onClick={() => onShowToast('일정 상세 페이지로 이동합니다.')} className="bg-surface-container-lowest p-5 rounded-2xl flex items-start gap-4 shadow-sm border border-surface-container-low cursor-pointer hover:bg-surface-container-low transition-colors">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
-                    schedule.type === 'worship' ? 'bg-primary-container text-on-primary-container' :
-                    schedule.type === 'education' ? 'bg-secondary-container text-on-secondary-container' :
-                    'bg-tertiary-container text-on-tertiary-container'
-                  }`}>
-                    {schedule.type === 'worship' && <BookOpen size={20} />}
-                    {schedule.type === 'education' && <GraduationCap size={20} />}
-                    {schedule.type === 'volunteer' && <HeartHandshake size={20} />}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-bold text-primary-dim">{schedule.time}</span>
-                      <span className="bg-surface-container-high text-on-surface-variant text-[10px] font-bold px-2 py-0.5 rounded-full">{schedule.d_day}</span>
-                    </div>
-                    <h4 className="font-bold text-on-surface mb-1">{schedule.title}</h4>
-                    <p className="text-xs text-on-surface-variant flex items-center gap-1">
-                      <MapPin size={12} /> {schedule.location}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
+// ==========================================
+
+
+
+
 
 const Toast = ({ message }: { message: string }) => {
   return (
@@ -3762,269 +1616,7 @@ const AttendanceView = ({ user, attendance, onBack, onShowToast }: any) => {
   </div>
 );
 };
-
-const SurveyView = ({ user, surveys, onBack, onShowToast, onVote }: any) => {
-  const [selectedSurvey, setSelectedSurvey] = useState<any>(null);
-  const [isAdding, setIsAdding] = useState(false);
-  const [newSurvey, setNewSurvey] = useState({
-    title: '',
-    description: '',
-    options: ['', ''],
-    deadline: ''
-  });
-
-  const handleAddSurvey = async () => {
-    if (!newSurvey.title || newSurvey.options.some(opt => !opt) || !newSurvey.deadline) {
-      onShowToast('모든 필드를 입력해주세요.');
-      return;
-    }
-
-    try {
-      await addDoc(collection(firestoreDb, 'surveys'), {
-        ...newSurvey,
-        status: 'active',
-        responses: {},
-        deadline: Timestamp.fromDate(new Date(newSurvey.deadline)),
-        createdAt: Timestamp.now()
-      });
-      onShowToast('설문조사가 추가되었습니다.');
-      setIsAdding(false);
-      setNewSurvey({ title: '', description: '', options: ['', ''], deadline: '' });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'surveys');
-    }
-  };
-
-  if (isAdding) {
-    return (
-      <div className="absolute inset-0 bg-surface z-[70] flex flex-col min-h-screen overflow-y-auto pb-24">
-        <header className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-surface-container-highest">
-          <div className="flex items-center justify-between px-2 py-3">
-            <div className="flex items-center">
-              <button onClick={() => setIsAdding(false)} className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
-                <ChevronLeft size={24} />
-              </button>
-              <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">설문 추가</h1>
-            </div>
-            <button 
-              onClick={handleAddSurvey}
-              className="px-4 py-2 bg-primary text-on-primary rounded-xl text-sm font-bold mr-2"
-            >
-              저장
-            </button>
-          </div>
-        </header>
-        <div className="p-6 space-y-6">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-on-surface mb-1">제목</label>
-              <input 
-                type="text" 
-                value={newSurvey.title}
-                onChange={(e) => setNewSurvey({...newSurvey, title: e.target.value})}
-                className="w-full bg-surface-container-low border border-surface-container-high rounded-xl px-4 py-3 text-on-surface outline-none focus:border-primary"
-                placeholder="설문 제목을 입력하세요"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-on-surface mb-1">설명</label>
-              <textarea 
-                value={newSurvey.description}
-                onChange={(e) => setNewSurvey({...newSurvey, description: e.target.value})}
-                className="w-full bg-surface-container-low border border-surface-container-high rounded-xl px-4 py-3 text-on-surface outline-none focus:border-primary min-h-[100px]"
-                placeholder="설문에 대한 설명을 입력하세요"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-on-surface mb-2">선택지</label>
-              <div className="space-y-2">
-                {newSurvey.options.map((opt, idx) => (
-                  <div key={idx} className="flex gap-2">
-                    <input 
-                      type="text" 
-                      value={opt}
-                      onChange={(e) => {
-                        const newOpts = [...newSurvey.options];
-                        newOpts[idx] = e.target.value;
-                        setNewSurvey({...newSurvey, options: newOpts});
-                      }}
-                      className="flex-1 bg-surface-container-low border border-surface-container-high rounded-xl px-4 py-3 text-on-surface outline-none focus:border-primary"
-                      placeholder={`옵션 ${idx + 1}`}
-                    />
-                    {newSurvey.options.length > 2 && (
-                      <button 
-                        onClick={() => {
-                          const newOpts = newSurvey.options.filter((_, i) => i !== idx);
-                          setNewSurvey({...newSurvey, options: newOpts});
-                        }}
-                        className="p-3 text-error"
-                      >
-                        <X size={20} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button 
-                  onClick={() => setNewSurvey({...newSurvey, options: [...newSurvey.options, '']})}
-                  className="w-full py-3 border border-dashed border-outline rounded-xl text-sm text-on-surface-variant flex items-center justify-center gap-2"
-                >
-                  <Plus size={16} />
-                  <span>선택지 추가</span>
-                </button>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-on-surface mb-1">마감 기한</label>
-              <input 
-                type="datetime-local" 
-                value={newSurvey.deadline}
-                onChange={(e) => setNewSurvey({...newSurvey, deadline: e.target.value})}
-                className="w-full bg-surface-container-low border border-surface-container-high rounded-xl px-4 py-3 text-on-surface outline-none focus:border-primary"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (selectedSurvey) {
-    const userResponse = selectedSurvey.responses?.[user?.uid];
-    return (
-      <div className="absolute inset-0 bg-surface z-[70] flex flex-col min-h-screen overflow-y-auto pb-24">
-        <header className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-surface-container-highest">
-          <div className="flex items-center px-2 py-3">
-            <button onClick={() => setSelectedSurvey(null)} className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
-              <ChevronLeft size={24} />
-            </button>
-            <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">설문 참여</h1>
-          </div>
-        </header>
-        <div className="p-6 space-y-6">
-          <div className="space-y-2">
-            <h2 className="text-2xl font-bold text-on-surface leading-tight">{selectedSurvey.title}</h2>
-            <p className="text-on-surface-variant">{selectedSurvey.description}</p>
-          </div>
-
-          <div className="space-y-3">
-            {selectedSurvey.options.map((option: string, index: number) => {
-              const isSelected = userResponse === index;
-              const totalVotes = Object.keys(selectedSurvey.responses || {}).length;
-              const optionVotes = Object.values(selectedSurvey.responses || {}).filter(v => v === index).length;
-              const percentage = totalVotes > 0 ? Math.round((optionVotes / totalVotes) * 100) : 0;
-
-              return (
-                <button
-                  key={index}
-                  onClick={async () => {
-                    const success = await onVote(selectedSurvey.id, index);
-                    if (success) setSelectedSurvey(null);
-                  }}
-                  disabled={userResponse !== undefined}
-                  className={`w-full p-4 rounded-2xl border transition-all text-left relative overflow-hidden ${
-                    isSelected 
-                      ? 'border-primary bg-primary/5' 
-                      : 'border-surface-container-high bg-surface-container-lowest hover:border-primary/50'
-                  }`}
-                >
-                  {userResponse !== undefined && (
-                    <div 
-                      className="absolute inset-y-0 left-0 bg-primary/10 transition-all duration-1000" 
-                      style={{ width: `${percentage}%` }}
-                    />
-                  )}
-                  <div className="relative z-10 flex justify-between items-center">
-                    <span className={`font-bold ${isSelected ? 'text-primary' : 'text-on-surface'}`}>{option}</span>
-                    {userResponse !== undefined && (
-                      <span className="text-xs font-bold text-primary">{percentage}%</span>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {userResponse !== undefined && (
-            <div className="bg-surface-container-low p-4 rounded-2xl text-center">
-              <p className="text-sm text-on-surface-variant">이미 설문에 참여하셨습니다.</p>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="absolute inset-0 bg-surface z-[60] flex flex-col min-h-screen overflow-y-auto pb-24">
-      <header className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-surface-container-highest">
-        <div className="flex items-center justify-between px-2 py-3">
-          <div className="flex items-center">
-            <button onClick={onBack} className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
-              <ChevronLeft size={24} />
-            </button>
-            <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">설문조사</h1>
-          </div>
-          {(user?.role === 'admin' || user?.email === 'jumphorse@nate.com' || user?.email === 'seokgwan.ms01@gmail.com' || user?.uid === 'sfViap2UZ2alO1kzinMETlcLCxv1') && (
-            <button 
-              onClick={() => setIsAdding(true)}
-              className="p-2 text-primary hover:bg-primary/10 rounded-full transition-colors mr-1"
-            >
-              <Plus size={24} />
-            </button>
-          )}
-        </div>
-      </header>
-      <div className="p-6 space-y-6">
-        <div className="bg-tertiary-container/30 rounded-2xl p-5 border border-tertiary-container/50">
-          <div className="flex items-center gap-2 mb-2">
-            <ClipboardList size={20} className="text-tertiary" />
-            <h2 className="font-bold text-tertiary">진행 중인 설문</h2>
-          </div>
-          <p className="text-sm text-on-surface-variant">공동체의 의견을 들려주세요. 여러분의 참여가 큰 힘이 됩니다.</p>
-        </div>
-
-        <div className="space-y-4">
-          {surveys.length > 0 ? (
-            surveys.map((survey: any) => {
-              const isClosed = survey.status === 'closed';
-              const userResponded = survey.responses?.[user?.uid] !== undefined;
-              
-              return (
-                <div 
-                  key={survey.id} 
-                  className="bg-surface-container-lowest p-5 rounded-2xl border border-surface-container-low shadow-sm group cursor-pointer hover:border-primary transition-colors" 
-                  onClick={() => setSelectedSurvey(survey)}
-                >
-                  <div className="flex justify-between items-start mb-3">
-                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
-                      isClosed ? 'bg-surface-container-high text-on-surface-variant' : 'bg-primary/10 text-primary'
-                    }`}>
-                      {isClosed ? '마감됨' : (userResponded ? '참여완료' : '진행중')}
-                    </span>
-                    <span className="text-xs text-on-surface-variant">
-                      {survey.deadline?.toDate ? `~ ${survey.deadline.toDate().toLocaleDateString()}까지` : 
-                       (survey.deadline?.seconds ? `~ ${new Date(survey.deadline.seconds * 1000).toLocaleDateString()}까지` : '기한 정보 없음')}
-                    </span>
-                  </div>
-                  <h3 className="text-lg font-bold text-on-surface mb-1 group-hover:text-primary transition-colors">{survey.title}</h3>
-                  <p className="text-sm text-on-surface-variant mb-4">{survey.description}</p>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-primary font-bold">{userResponded ? '결과 보기' : '참여하기'}</span>
-                    <ChevronRight size={16} className="text-primary" />
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div className="text-center py-10 text-on-surface-variant text-sm">
-              진행 중인 설문이 없습니다.
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
+
 
 const FinanceView = ({ user, fees, onBack, onShowToast }: any) => {
   const currentMonth = new Date().getMonth() + 1;
@@ -4172,54 +1764,69 @@ const MinutesView = ({ onBack, onShowToast }: any) => (
   </div>
 );
 
+export const VISIT_CATEGORIES = [
+  { id: 'spiritual', label: '영적 돌봄', icon: '✝️', color: 'bg-purple-50 text-purple-600 border-purple-100' },
+  { id: 'family', label: '가정/관계', icon: '🏠', color: 'bg-blue-50 text-blue-600 border-blue-100' },
+  { id: 'job', label: '직장/진로', icon: '💼', color: 'bg-amber-50 text-amber-600 border-amber-100' },
+  { id: 'finance', label: '재정', icon: '💰', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
+  { id: 'health', label: '건강', icon: '🏥', color: 'bg-rose-50 text-rose-600 border-rose-100' },
+  { id: 'other', label: '기타', icon: '📝', color: 'bg-surface-container text-on-surface-variant border-surface-container-high' },
+];
+
 const PastoralCardModal = ({ targetUser, pastoralRecords, onClose, currentUser, onShowToast, forests, attendance }: any) => {
   const [newLog, setNewLog] = useState('');
   const [logType, setLogType] = useState('meetup');
+  const [logCategory, setLogCategory] = useState('spiritual');
+  const [isSensitive, setIsSensitive] = useState(false);
   const [newPrayer, setNewPrayer] = useState('');
 
-  const targetRecords = pastoralRecords.filter((r: any) => r.target_uid === targetUser.uid).sort((a: any, b: any) => b.createdAt?.seconds - a.createdAt?.seconds);
+  const isPastorOrAdmin = currentUser?.role === 'admin' || currentUser?.role === 'pastor';
+
+  const targetRecords = pastoralRecords
+    .filter((r: any) => r.target_uid === targetUser.uid)
+    .filter((r: any) => isPastorOrAdmin ? true : !r.is_sensitive)
+    .sort((a: any, b: any) => b.createdAt?.seconds - a.createdAt?.seconds);
+
   const prayerRequests = targetRecords.filter((r: any) => r.type === 'prayer');
   const visitLogs = targetRecords.filter((r: any) => r.type !== 'prayer');
-
   const forestName = forests?.find((f: any) => f.forest_id === targetUser.forest_id)?.name || '소속 없음';
+  const getCategoryInfo = (cat: string) => VISIT_CATEGORIES.find(c => c.id === cat) || VISIT_CATEGORIES[VISIT_CATEGORIES.length - 1];
 
   const handleAddLog = async () => {
     if (!newLog) return;
     try {
       await addDoc(collection(firestoreDb, 'pastoral_records'), {
-        target_uid: targetUser.uid,
-        author_uid: currentUser.uid,
-        forest_id: targetUser.forest_id,
-        type: logType,
+        target_uid: targetUser.uid || '', 
+        author_uid: currentUser?.uid || '',
+        forest_id: targetUser.forest_id || '', 
+        type: logType || 'meetup',
+        category: logCategory || 'spiritual', 
         content: newLog,
+        is_sensitive: isSensitive || false,
         date: new Date().toISOString().split('T')[0],
         createdAt: Timestamp.now()
       });
-      setNewLog('');
+      setNewLog(''); setIsSensitive(false);
       onShowToast('심방 기록이 추가되었습니다.');
-    } catch (err) {
-      console.error(err);
-      onShowToast('오류가 발생했습니다.');
-    }
+    } catch (err: any) { console.error(err); onShowToast('저장 실패: ' + err.message); }
   };
 
   const handleAddPrayer = async () => {
     if (!newPrayer) return;
     try {
       await addDoc(collection(firestoreDb, 'pastoral_records'), {
-        target_uid: targetUser.uid,
-        author_uid: currentUser.uid,
-        forest_id: targetUser.forest_id,
+        target_uid: targetUser.uid || '', 
+        author_uid: currentUser?.uid || '',
+        forest_id: targetUser.forest_id || '', 
         type: 'prayer',
-        content: newPrayer,
+        content: newPrayer, 
+        is_sensitive: false, 
         status: 'active',
         createdAt: Timestamp.now()
       });
       setNewPrayer('');
       onShowToast('기도제목이 추가되었습니다.');
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err: any) { console.error(err); onShowToast('저장 실패: ' + err.message); }
   };
 
   const togglePrayerStatus = async (id: string, currentStatus: string) => {
@@ -4227,17 +1834,13 @@ const PastoralCardModal = ({ targetUser, pastoralRecords, onClose, currentUser, 
       await updateDoc(doc(firestoreDb, 'pastoral_records', id), {
         status: currentStatus === 'active' ? 'resolved' : 'active'
       });
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err: any) { console.error(err); onShowToast('수정 실패: ' + err.message); }
   };
-  
+
   const fourWeeksAgo = new Date();
   fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
-  const targetAttendance = attendance.filter((a: any) => 
-    a.uid === targetUser.uid && 
-    a.date?.seconds && 
-    new Date(a.date.seconds * 1000) > fourWeeksAgo
+  const targetAttendance = attendance.filter((a: any) =>
+    a.uid === targetUser.uid && a.date?.seconds && new Date(a.date.seconds * 1000) > fourWeeksAgo
   );
   const missedWeeks = 4 - targetAttendance.length;
 
@@ -4251,9 +1854,11 @@ const PastoralCardModal = ({ targetUser, pastoralRecords, onClose, currentUser, 
             </button>
             <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">목양 카드</h1>
           </div>
+          {!isPastorOrAdmin && (
+            <span className="mr-3 text-[10px] bg-surface-container text-on-surface-variant px-2 py-1 rounded-full font-bold">민감기록 제외됨</span>
+          )}
         </div>
       </header>
-
       <div className="p-6 space-y-6 pb-32">
         <div className="bg-surface-container-lowest p-6 rounded-2xl shadow-sm border border-surface-container-low flex items-center gap-5">
           <div className="w-16 h-16 shrink-0">
@@ -4267,7 +1872,7 @@ const PastoralCardModal = ({ targetUser, pastoralRecords, onClose, currentUser, 
           </div>
           <div className="flex flex-col">
             <h2 className="text-2xl font-bold text-on-surface">{targetUser.name}</h2>
-            <p className="text-sm font-medium text-on-surface-variant mt-1">{forestName} • {targetUser.role === 'leader' ? '숲지기' : '멤버'}</p>
+            <p className="text-sm font-medium text-on-surface-variant mt-1">{forestName} · {targetUser.role === 'leader' ? '숲지기' : '멤버'}</p>
             {targetUser.ministry && <span className="bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-[10px] font-bold w-fit mt-2">{targetUser.ministry}</span>}
           </div>
         </div>
@@ -4286,9 +1891,7 @@ const PastoralCardModal = ({ targetUser, pastoralRecords, onClose, currentUser, 
                 <span className="animate-pulse">🚨</span> 장기 결석 주의
               </div>
             ) : missedWeeks === 0 ? (
-              <div className="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-bold text-xs shadow-sm">
-                개근 멤버
-              </div>
+              <div className="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-lg font-bold text-xs shadow-sm">개근 멤버</div>
             ) : null}
           </div>
         </section>
@@ -4298,18 +1901,16 @@ const PastoralCardModal = ({ targetUser, pastoralRecords, onClose, currentUser, 
             <Heart size={18} className="text-rose-500" /> 기도제목
           </h3>
           <div className="flex gap-2">
-            <input type="text" value={newPrayer} onChange={e => setNewPrayer(e.target.value)} placeholder="새 기도제목 입력..." className="flex-1 bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary" />
+            <input type="text" value={newPrayer} onChange={e => setNewPrayer(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddPrayer()} placeholder="새 기도제목 입력..." className="flex-1 bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary" />
             <button onClick={handleAddPrayer} className="bg-primary text-on-primary px-4 rounded-xl font-bold active:scale-95 transition-transform"><Plus size={20}/></button>
           </div>
-          <div className="space-y-2 mt-4">
+          <div className="space-y-2 mt-2">
             {prayerRequests.map((p: any) => (
               <div key={p.id} className="flex items-start gap-3 p-3 bg-surface-container-lowest border border-surface-container-low rounded-xl">
                 <button onClick={() => togglePrayerStatus(p.id, p.status)} className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center shrink-0 border transition-colors ${p.status === 'resolved' ? 'bg-primary border-primary text-white' : 'border-outline-variant text-transparent hover:border-primary'}`}>
                   <CheckCircle2 size={14} />
                 </button>
-                <div className={`flex-1 text-sm ${p.status === 'resolved' ? 'text-on-surface-variant line-through opacity-70' : 'text-on-surface'}`}>
-                  {p.content}
-                </div>
+                <div className={`flex-1 text-sm ${p.status === 'resolved' ? 'text-on-surface-variant line-through opacity-70' : 'text-on-surface'}`}>{p.content}</div>
               </div>
             ))}
             {prayerRequests.length === 0 && <p className="text-xs text-on-surface-variant text-center py-4">등록된 기도제목이 없습니다.</p>}
@@ -4321,36 +1922,75 @@ const PastoralCardModal = ({ targetUser, pastoralRecords, onClose, currentUser, 
             <MessageSquare size={18} className="text-blue-500" /> 심방/상담 기록
           </h3>
           <div className="space-y-3 bg-surface-container p-4 rounded-xl">
-            <div className="flex gap-2">
-              {['meetup', 'call', 'other'].map(t => (
-                <button key={t} onClick={() => setLogType(t)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${logType === t ? 'bg-white text-primary shadow-sm' : 'text-on-surface-variant hover:bg-white/50'}`}>
-                  {t === 'meetup' ? '대면' : t === 'call' ? '전화/카톡' : '기타'}
-                </button>
-              ))}
+            <div>
+              <p className="text-[10px] font-bold text-on-surface-variant uppercase mb-2">연락 방법</p>
+              <div className="flex gap-2 flex-wrap">
+                {(['meetup', 'call', 'other'] as const).map(t => (
+                  <button key={t} onClick={() => setLogType(t)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${logType === t ? 'bg-white text-primary shadow-sm' : 'text-on-surface-variant hover:bg-white/50'}`}>
+                    {t === 'meetup' ? '📍 대면' : t === 'call' ? '📞 전화/카톡' : '💬 기타'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-on-surface-variant uppercase mb-2">상담 분야</p>
+              <div className="grid grid-cols-3 gap-2">
+                {VISIT_CATEGORIES.map(cat => (
+                  <button key={cat.id} onClick={() => setLogCategory(cat.id)}
+                    className={`flex items-center gap-1.5 px-2 py-2 rounded-xl text-xs font-bold border transition-all ${logCategory === cat.id ? 'bg-white shadow-sm border-primary text-primary' : 'bg-white/50 border-transparent text-on-surface-variant'}`}>
+                    <span>{cat.icon}</span><span className="truncate">{cat.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
             <textarea value={newLog} onChange={e => setNewLog(e.target.value)} placeholder="심방 내용을 기록해주세요..." className="w-full bg-white p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary min-h-[80px] resize-none" />
+            {isPastorOrAdmin && (
+              <button onClick={() => setIsSensitive(!isSensitive)}
+                className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${isSensitive ? 'bg-red-50 border-red-200 text-red-700' : 'bg-surface-container-lowest border-surface-container-low text-on-surface-variant'}`}>
+                <div className="flex items-center gap-2 text-xs font-bold">
+                  <Lock size={14} /><span>목사님/관리자 전용 민감 기록</span>
+                </div>
+                <div className={`w-10 h-5 rounded-full transition-colors relative ${isSensitive ? 'bg-red-500' : 'bg-surface-container-high'}`}>
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${isSensitive ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                </div>
+              </button>
+            )}
             <button onClick={handleAddLog} className="w-full bg-primary-container text-on-primary-container py-3 rounded-xl font-bold text-sm active:scale-95 transition-transform flex items-center justify-center gap-2">
               <FileEdit size={16} /> 기록 저장
             </button>
           </div>
-          
           <div className="space-y-4 mt-6">
-            {visitLogs.map((log: any) => (
-              <div key={log.id} className="relative pl-6 border-l-2 border-surface-container-low pb-4 last:pb-0">
-                <div className="absolute left-[-9px] top-0 w-4 h-4 rounded-full bg-surface-container-lowest border-2 border-primary flex items-center justify-center">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                </div>
-                <div className="bg-surface-container-lowest border border-surface-container-low p-4 rounded-xl shadow-sm">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded uppercase">
-                      {log.type === 'meetup' ? '대면 심방' : log.type === 'call' ? '전화 연락' : '기타'}
-                    </span>
-                    <span className="text-xs text-on-surface-variant font-medium">{log.date}</span>
+            {visitLogs.map((log: any) => {
+              const catInfo = getCategoryInfo(log.category);
+              return (
+                <div key={log.id} className="relative pl-6 border-l-2 border-surface-container-low pb-4 last:pb-0">
+                  <div className="absolute left-[-9px] top-0 w-4 h-4 rounded-full bg-surface-container-lowest border-2 border-primary flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                   </div>
-                  <p className="text-sm text-on-surface leading-relaxed">{log.content}</p>
+                  <div className={`bg-surface-container-lowest border p-4 rounded-xl shadow-sm ${log.is_sensitive ? 'border-red-200 bg-red-50/30' : 'border-surface-container-low'}`}>
+                    <div className="flex items-center justify-between mb-2 flex-wrap gap-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded uppercase">
+                          {log.type === 'meetup' ? '📍 대면' : log.type === 'call' ? '📞 전화' : '💬 기타'}
+                        </span>
+                        {log.category && (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${catInfo.color}`}>
+                            {catInfo.icon} {catInfo.label}
+                          </span>
+                        )}
+                        {log.is_sensitive && isPastorOrAdmin && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-100 text-red-700 border border-red-200 flex items-center gap-1">
+                            <Lock size={8} /> 민감
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-on-surface-variant font-medium">{log.date}</span>
+                    </div>
+                    <p className="text-sm text-on-surface leading-relaxed">{log.content}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {visitLogs.length === 0 && <p className="text-xs text-on-surface-variant text-center py-4">아직 심방 기록이 없습니다.</p>}
           </div>
         </section>
@@ -4359,149 +1999,3 @@ const PastoralCardModal = ({ targetUser, pastoralRecords, onClose, currentUser, 
   );
 };
 
-const PastoralStatsDashboardView = ({ user, users, forests, attendance, pastoralRecords, weeklySettlements, onBack, onShowToast }: any) => {
-  const isAdmin = user?.role === 'admin';
-  const myForestId = user?.forest_id;
-
-  // Calculate past 4 weeks bounds
-  const today = new Date();
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1)); // Monday
-  weekStart.setHours(0,0,0,0);
-  
-  const fourWeeksAgo = new Date();
-  fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
-
-  const weekStr = `${weekStart.getFullYear()}-${(weekStart.getMonth()+1).toString().padStart(2, '0')}-${weekStart.getDate().toString().padStart(2, '0')}`;
-
-  const handleSubmitSettlement = async (targetForestId: string) => {
-    try {
-      await addDoc(collection(firestoreDb, 'weekly_settlements'), {
-        forest_id: targetForestId,
-        week: weekStr,
-        status: 'submitted',
-        submittedAt: Timestamp.now(),
-        submittedBy: user.uid
-      });
-      onShowToast('주간 결산이 제출되었습니다.');
-    } catch (e) {
-      console.error(e);
-      onShowToast('결산 제출 중 오류가 발생했습니다.');
-    }
-  };
-
-  // 1. Identify "Intensive Care" members (0 attendance in last 4 weeks)
-  const getAbsentees = (forestId: string | null) => {
-    const list = users.filter((u: any) => forestId ? u.forest_id === forestId : true);
-    return list.filter((u: any) => {
-      const uAtt = attendance.filter((a: any) => a.uid === u.uid && a.date?.seconds && new Date(a.date.seconds * 1000) > fourWeeksAgo);
-      return uAtt.length === 0 && u.role !== 'admin';
-    });
-  };
-
-  // 2. Weekly Stats per forest
-  const thisWeekRecords = pastoralRecords.filter((r: any) => r.createdAt?.seconds && new Date(r.createdAt.seconds * 1000) >= weekStart);
-  
-  const getForestStats = (fid: string) => {
-    const fRecords = thisWeekRecords.filter((r: any) => r.forest_id === fid);
-    const visitCount = fRecords.filter((r: any) => r.type !== 'prayer').length;
-    const prayerCount = fRecords.filter((r: any) => r.type === 'prayer').length;
-    const isSubmitted = weeklySettlements.some((s: any) => s.forest_id === fid && s.week === weekStr);
-    return { visitCount, prayerCount, isSubmitted };
-  };
-
-  const myForestAbsentees = getAbsentees(myForestId);
-  const allAbsentees = isAdmin ? getAbsentees(null) : [];
-
-  return (
-    <div className="absolute inset-0 bg-surface z-[60] flex flex-col min-h-screen overflow-y-auto pb-24">
-      <header className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-surface-container-highest">
-        <div className="flex items-center px-2 py-3">
-          <button onClick={onBack} className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
-            <ChevronLeft size={24} />
-          </button>
-          <div className="flex flex-col ml-2">
-            <h1 className="text-lg font-bold tracking-tight text-on-surface">목양 결산 통계</h1>
-            <span className="text-[10px] text-primary font-bold">{weekStr} 주간</span>
-          </div>
-        </div>
-      </header>
-
-      <div className="p-6 space-y-6">
-        {/* Alerts Section (Highest Priority) */}
-        {(myForestAbsentees.length > 0 || allAbsentees.length > 0) && (
-          <section className="bg-error/10 border border-error/20 p-5 rounded-2xl shadow-sm space-y-3">
-            <h2 className="text-error font-bold flex items-center gap-2">
-              <AlertTriangle size={18} /> 🚨 장기 결석 집중 케어 명단
-            </h2>
-            <p className="text-xs text-error/80 font-medium">최근 4주간 단 한 번도 출석하지 않은 인원입니다. 신속한 심방을 요합니다.</p>
-            <div className="flex flex-wrap gap-2 pt-2">
-              {(isAdmin ? allAbsentees : myForestAbsentees).map((u: any) => (
-                <span key={u.uid} className="bg-white text-error px-3 py-1.5 rounded-full text-xs font-bold border border-error/20 shadow-sm">
-                  {u.name} {isAdmin ? `(${forests.find((f:any)=>f.forest_id===u.forest_id)?.name || '소속없음'})` : ''}
-                </span>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Admin Dashboard */}
-        {isAdmin && (
-          <section className="space-y-4">
-             <h2 className="text-xl font-bold text-on-surface tracking-tight bg-gradient-to-r from-primary to-primary-dim text-transparent bg-clip-text">전체 숲 결산 대시보드</h2>
-             <div className="space-y-3">
-               {forests.map((f: any) => {
-                 const stats = getForestStats(f.forest_id);
-                 return (
-                   <div key={f.forest_id} className={`p-4 rounded-2xl border flex items-center justify-between shadow-sm transition-all ${stats.isSubmitted ? 'bg-surface-container-lowest border-surface-container-low' : 'bg-orange-50/50 border-orange-200'}`}>
-                     <div className="flex flex-col">
-                       <span className="font-bold text-on-surface flex items-center gap-2">
-                          {f.name}
-                          {!stats.isSubmitted && <span className="bg-orange-100 text-orange-600 text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap animate-pulse">결산 미제출 ⚠️</span>}
-                       </span>
-                       <span className="text-xs text-on-surface-variant font-medium mt-1">이번 주 심방: {stats.visitCount}건 | 기도제목: {stats.prayerCount}건</span>
-                     </div>
-                     <ChevronRight size={18} className="text-outline" />
-                   </div>
-                 );
-               })}
-             </div>
-          </section>
-        )}
-
-        {/* Leader Dashboard */}
-        {!isAdmin && myForestId && (
-          <section className="space-y-4">
-             <div className="flex items-center justify-between">
-               <h2 className="text-xl font-bold text-on-surface tracking-tight">우리 숲 목양 현황</h2>
-               {getForestStats(myForestId).isSubmitted ? (
-                 <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-bold border border-emerald-100">결산 제출됨 ✔️</span>
-               ) : (
-                 <button onClick={() => handleSubmitSettlement(myForestId)} className="bg-primary text-on-primary px-3 py-1.5 rounded-full text-[10px] font-bold shadow-sm active:scale-95 transition-transform">
-                   이번 주 결산 제출
-                 </button>
-               )}
-             </div>
-             
-             <div className="grid grid-cols-2 gap-3">
-               <div className="bg-surface-container-lowest p-5 rounded-2xl shadow-sm border border-surface-container-low flex flex-col items-center justify-center gap-2">
-                 <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center">
-                   <MessageSquare size={20} />
-                 </div>
-                 <span className="text-xs font-bold text-on-surface-variant">이번 주 심방</span>
-                 <span className="text-2xl font-black text-on-surface">{getForestStats(myForestId).visitCount}건</span>
-               </div>
-               <div className="bg-surface-container-lowest p-5 rounded-2xl shadow-sm border border-surface-container-low flex flex-col items-center justify-center gap-2">
-                 <div className="w-10 h-10 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center">
-                   <Heart size={20} />
-                 </div>
-                 <span className="text-xs font-bold text-on-surface-variant">신규 기도제목</span>
-                 <span className="text-2xl font-black text-on-surface">{getForestStats(myForestId).prayerCount}건</span>
-               </div>
-             </div>
-          </section>
-        )}
-      </div>
-    </div>
-  );
-};

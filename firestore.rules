@@ -28,6 +28,11 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'leader';
     }
+    function isPastor() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'pastor';
+    }
 
     // User rules
     match /users/{userId} {
@@ -61,7 +66,8 @@ service cloud.firestore {
     // Program rules
     match /programs/{programId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() || isLeader();
+      allow create, delete: if isAdmin() || isLeader();
+      allow update: if isAdmin() || isLeader() || (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['applicants']));
     }
 
     // Attendance rules
@@ -74,7 +80,8 @@ service cloud.firestore {
     // Schedule rules
     match /schedules/{scheduleId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() || hasPermission('schedule');
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin() || hasPermission('schedule');
     }
 
     // Forest Post rules
@@ -101,10 +108,40 @@ service cloud.firestore {
     // Worship rules
     match /worships/{worshipId} {
       allow read: if request.auth != null;
-      allow create: if isAdmin();
-      allow update: if isAdmin() || 
+      allow create: if isAuthenticated();
+      allow update: if isAdmin() || isLeader() || 
         (request.auth != null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['view_count']));
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || isLeader();
+    }
+
+    // Pastoral Records rules
+    match /pastoral_records/{recordId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() || 
+        isPastor() || 
+        (isLeader() && resource.data.forest_id == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.forest_id && (!('is_sensitive' in resource.data) || resource.data.is_sensitive == false))
+      );
+      allow create: if isAuthenticated() && (
+        isAdmin() || 
+        isPastor() || 
+        (isLeader() && request.resource.data.forest_id == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.forest_id)
+      );
+      allow update, delete: if isAuthenticated() && (isAdmin() || isPastor() || request.auth.uid == resource.data.author_uid);
+    }
+
+    // Weekly Settlements rules
+    match /weekly_settlements/{settlementId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() || 
+        isPastor() || 
+        (isLeader() && resource.data.forest_id == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.forest_id)
+      );
+      allow create: if isAuthenticated() && (
+        isAdmin() || 
+        isPastor() || 
+        (isLeader() && request.resource.data.forest_id == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.forest_id)
+      );
+      allow update, delete: if isAdmin() || isPastor();
     }
   }
 }

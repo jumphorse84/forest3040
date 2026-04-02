@@ -1,0 +1,1623 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useEffect } from 'react';
+import {
+  Menu, Bell, User, Flame, QrCode, Users, ClipboardList, Wallet, FileText,
+  MapPin, ChevronRight, ChevronLeft, Home, LayoutGrid, BookOpen, Calendar, Baby,
+  MessageCircle, ArrowLeft, CheckCircle2, XCircle, FileEdit, X, Search, Phone, Lock, UserCircle, Settings, Award, Clock, Heart, MessageSquare, Send, LogOut, Sparkles, TreePine, HeartHandshake, GraduationCap, History, Plus, Play,
+  SlidersHorizontal, Camera, Bookmark, MoreHorizontal, Music, Megaphone, Trash2, MoreVertical, PieChart, AlertTriangle, TrendingUp
+} from 'lucide-react';
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  addDoc,
+  getDoc, 
+  onSnapshot, 
+  query, 
+  where, 
+  orderBy, 
+  getDocFromServer,
+  Timestamp,
+  updateDoc,
+  deleteDoc
+} from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { db as firestoreDb, auth, storage } from './firebase';
+import { 
+  signInWithCustomToken, 
+  onAuthStateChanged, 
+  signOut, 
+  User as FirebaseUser,
+  updateProfile,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  OAuthProvider
+} from 'firebase/auth';
+import { jwtDecode } from 'jwt-decode';
+
+// ==========================================
+// Types & Error Handling
+// ==========================================
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+// ==========================================
+// 1. Mock Data (Fallback)
+// ==========================================
+const mockDb = {
+  users: [
+    { uid: 'u1', name: '김하늘', role: 'member', forest_id: 'f1', score: 120, phone: '010-1111-2222', attendance_rate: 92, badges: ['🌱 새가족반 수료', '🔥 5주 연속 출석'], activity_history: [{ id: 'h1', date: '2026.03.22', type: '출석', desc: '3월 3주차 주일예배 출석완료' }], email: 'sky@example.com', profile_image: 'https://picsum.photos/seed/sky/200' },
+    { uid: 'u2', name: '이소망', role: 'leader', forest_id: 'f2', score: 80, phone: '010-2222-3333', email: 'hope@example.com', profile_image: 'https://picsum.photos/seed/hope/200' },
+    { uid: 'u3', name: '다윗 민', role: 'member', forest_id: 'f1', score: 45, phone: '010-3333-4444', email: 'david@example.com', profile_image: 'https://picsum.photos/seed/david/200' },
+  ],
+  forests: [
+    { forest_id: 'f1', name: '베베숲', leader_uid: 'u1', total_score: 180 },
+    { forest_id: 'f2', name: '숲퍼파워', leader_uid: 'u2', total_score: 125 },
+  ],
+  schedules: [
+    { id: 's1', title: '부활절 연합 예배', date: '4월 5일', fullDate: '2026-04-05', time: '오전 11:00', location: '본당 대예배실', d_day: 'D-10', active: true, type: 'worship' },
+    { id: 's2', title: '청년 멘토링 세미나', date: '3월 28일', fullDate: '2026-03-28', time: '오후 14:00', location: '커뮤니티 센터 B1', d_day: 'D-2', active: true, type: 'education' },
+    { id: 's3', title: '봄 맞이 숲 청소 봉사', date: '3월 29일', fullDate: '2026-03-29', time: '오후 15:00', location: '교회 인근 공원', d_day: 'D-3', active: true, type: 'volunteer' },
+  ],
+  programs: [
+    { id: 'p1', category: '사역', type: '해외선교', host: '청년부 주관', title: '2026 여름 단기선교 (태국)', date: '7.25(목) - 8.1(목)', location: '태국 치앙마이 일대', image: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?q=80&w=2070&auto=format&fit=crop', status: '모집중', dDay: 'D-15', desc: '올해 여름, 태국 치앙마이로 단기선교를 떠납니다. 현지 교회와 협력하여 어린이 성경학교를 진행하고, 산지 마을을 방문하여 복음을 전하며 의료 및 노력 봉사를 실시할 예정입니다.' },
+    { id: 'p2', category: '교육/훈련', type: '양육', host: '12주 과정', title: '제자훈련 1단계 (기초)', date: '매주 화요일 19:30', location: '비전센터 302호', image: 'https://images.unsplash.com/photo-1491841550275-ad7854e35ca6?q=80&w=1974&auto=format&fit=crop', status: '진행중', dDay: '', desc: '신앙의 기초를 다지는 제자훈련 1단계입니다. 말씀과 기도로 무장하며 그리스도의 참된 제자로 성장하는 시간을 가집니다.' },
+    { id: 'p3', category: '봉사', type: '이웃사랑', host: '월 1회', title: '지역사회 독거노인 반찬봉사', date: '이번주 토요일 09:00', location: '교회 식당 집결', image: 'https://images.unsplash.com/photo-1593113580332-8288e4e46954?q=80&w=2070&auto=format&fit=crop', status: '마감임박', dDay: '2자리 남음', desc: '홀로 계신 어르신들을 위해 정성껏 반찬을 만들고 배달하는 봉사입니다. 작은 사랑의 실천이 큰 기적이 됩니다.' },
+  ],
+  forest_posts: [
+    { id: 'fp1', forest_id: 'f1', author_uid: 'u3', author_name: '다윗 민', content: '이번 주 금요일 저녁 8시에 온라인으로 잠깐 모일까요?\n기도제목도 나누고 이번 주 미션도 같이 해봐요!', date: '10.20 10:30', comments: 2 },
+  ]
+};
+
+export const FOREST_GROUPS = [
+  { forest_id: 'bebe', name: '베베숲' },
+  { forest_id: 'superpower', name: '숲퍼파워' },
+  { forest_id: 'supermance', name: '숲퍼맨스' },
+  { forest_id: 'bts', name: 'BTS숲' },
+  { forest_id: 'haneul', name: '하늘숲' },
+  { forest_id: 'bamboo', name: '대나무숲' },
+  { forest_id: 'tta', name: '따숲' },
+  { forest_id: 'pureun', name: '푸른숲' },
+  { forest_id: 'goyo', name: '고요숲' },
+  { forest_id: 'supreme', name: '숲프림' },
+  { forest_id: 'start', name: '숲타트' }
+];
+
+// ==========================================
+// 2. Main App Component
+// ==========================================
+export default function App() {
+  const [activeTab, setActiveTab] = useState('home'); 
+  const [subPage, setSubPage] = useState<string | null>(null); 
+  const [selectedForestId, setSelectedForestId] = useState<string | null>(null);
+  const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
+  const [selectedWorshipId, setSelectedWorshipId] = useState<string | null>(null);
+  const [selectedPastoralUser, setSelectedPastoralUser] = useState<any>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showRedirectLoginModal, setShowRedirectLoginModal] = useState(false);
+
+  const handleNavigateToAdmin = () => setSubPage('admin');
+  
+  // Firebase Auth & Firestore State
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [userData, setUserData] = useState<any>(null);
+  const [users, setUsers] = useState<any[]>([]);
+  const [forests, setForests] = useState<any[]>([]);
+  const [programs, setPrograms] = useState<any[]>([]);
+  const [attendance, setAttendance] = useState<any[]>([]);
+  const [forestPosts, setForestPosts] = useState<any[]>([]);
+  const [schedules, setSchedules] = useState<any[]>([]);
+  const [surveys, setSurveys] = useState<any[]>([]);
+  const [worships, setWorships] = useState<any[]>([]);
+  const [fees, setFees] = useState<any[]>([]);
+  const [pastoralRecords, setPastoralRecords] = useState<any[]>([]);
+  const [weeklySettlements, setWeeklySettlements] = useState<any[]>([]);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Test Firestore Connection
+  useEffect(() => {
+    async function testConnection() {
+      try {
+        await getDocFromServer(doc(firestoreDb, 'test', 'connection'));
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration.");
+        }
+      }
+    }
+    testConnection();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsAuthReady(true);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    getRedirectResult(auth).then(async (result) => {
+      if (result) {
+        const credential = OAuthProvider.credentialFromResult(result);
+        if (credential && credential.idToken) {
+          try {
+            const decodedToken: any = jwtDecode(credential.idToken);
+            const kakaoNickname = decodedToken.nickname;
+            const kakaoPicture = decodedToken.picture;
+
+            if (kakaoNickname && !result.user.displayName) {
+              await updateProfile(result.user, {
+                displayName: kakaoNickname,
+                photoURL: kakaoPicture || result.user.photoURL
+              });
+              setUser({ ...result.user, displayName: kakaoNickname, photoURL: kakaoPicture || result.user.photoURL });
+            }
+          } catch (decodeError) {
+            console.error("Token decoding failed:", decodeError);
+          }
+        }
+        await saveUserToFirestore(result.user);
+        setActiveTab('home');
+        setSubPage(null);
+        showToast("로그인되었습니다.");
+      }
+    }).catch((error) => {
+      console.error("Redirect login failed:", error);
+    });
+  }, []);
+
+  // 1. User Data Listener
+  useEffect(() => {
+    if (!isAuthReady || !user) {
+      setUserData(null);
+      return;
+    }
+
+    const unsubUser = onSnapshot(doc(firestoreDb, 'users', user.uid), (snapshot) => {
+      if (snapshot.exists()) {
+        setUserData(snapshot.data());
+      } else {
+        saveUserToFirestore(user);
+      }
+    }, (err) => handleFirestoreError(err, OperationType.GET, `users/${user.uid}`));
+
+    return () => unsubUser();
+  }, [isAuthReady, user?.uid]);
+
+  // 2. Other Collections Listeners
+  useEffect(() => {
+    if (!isAuthReady || !user) {
+      setForests([]);
+      setPrograms([]);
+      setAttendance([]);
+      setUsers([]);
+      setForestPosts([]);
+      setSchedules([]);
+      setSurveys([]);
+      setFees([]);
+      setPastoralRecords([]);
+      setWeeklySettlements([]);
+      return;
+    }
+
+    const unsubUsers = onSnapshot(collection(firestoreDb, 'users'), (snapshot) => {
+      setUsers(snapshot.docs.map(d => ({ ...d.data(), uid: d.id })));
+    }, (err) => handleFirestoreError(err, OperationType.GET, 'users'));
+
+    const unsubForests = onSnapshot(collection(firestoreDb, 'forests'), (snapshot) => {
+      setForests(snapshot.docs.map(d => ({ ...d.data(), id: d.id })));
+    }, (err) => handleFirestoreError(err, OperationType.GET, 'forests'));
+
+    const unsubPrograms = onSnapshot(collection(firestoreDb, 'programs'), (snapshot) => {
+      setPrograms(snapshot.docs.map(d => ({ ...d.data(), id: d.id })));
+    }, (err) => handleFirestoreError(err, OperationType.GET, 'programs'));
+
+    const unsubAttendance = onSnapshot(collection(firestoreDb, 'attendance'), (snapshot) => {
+      setAttendance(snapshot.docs.map(d => ({ ...d.data(), id: d.id })));
+    }, (err) => handleFirestoreError(err, OperationType.GET, 'attendance'));
+
+    const unsubForestPosts = onSnapshot(collection(firestoreDb, 'forest_posts'), (snapshot) => {
+      setForestPosts(snapshot.docs.map(d => ({ ...d.data(), id: d.id })));
+    }, (err) => handleFirestoreError(err, OperationType.GET, 'forest_posts'));
+
+    const unsubSchedules = onSnapshot(collection(firestoreDb, 'schedules'), (snapshot) => {
+      setSchedules(snapshot.docs.map(d => ({ ...d.data(), id: d.id })));
+    }, (err) => handleFirestoreError(err, OperationType.GET, 'schedules'));
+
+    const unsubSurveys = onSnapshot(collection(firestoreDb, 'surveys'), (snapshot) => {
+      setSurveys(snapshot.docs.map(d => ({ ...d.data(), id: d.id })));
+    }, (err) => handleFirestoreError(err, OperationType.GET, 'surveys'));
+
+    const unsubWorships = onSnapshot(collection(firestoreDb, 'worships'), (snapshot) => {
+      setWorships(snapshot.docs.map(d => ({ ...d.data(), id: d.id })));
+    }, (err) => handleFirestoreError(err, OperationType.GET, 'worships'));
+
+    // Fees listener - restricted by permission
+    const isAdminUser = userData?.role === 'admin' || user?.uid === 'sfViap2UZ2alO1kzinMETlcLCxv1' || user?.email === 'seokgwan.ms01@gmail.com' || user?.email === 'jumphorse@nate.com';
+    const canSeeAllFees = isAdminUser || userData?.permissions?.finance;
+    const feesQuery = canSeeAllFees 
+      ? collection(firestoreDb, 'fees') 
+      : query(collection(firestoreDb, 'fees'), where('uid', '==', user.uid));
+
+    const unsubFees = onSnapshot(feesQuery, (snapshot) => {
+      setFees(snapshot.docs.map(d => ({ ...d.data(), id: d.id })));
+    }, (err) => handleFirestoreError(err, OperationType.GET, 'fees'));
+
+    const canSeePastoral = isAdminUser || userData?.role === 'pastor' || userData?.role === 'leader';
+    let unsubPastoral = () => {};
+    let unsubSettlements = () => {};
+
+    if (canSeePastoral) {
+      const pastoralQuery = isAdminUser 
+        ? collection(firestoreDb, 'pastoral_records')
+        : query(collection(firestoreDb, 'pastoral_records'), where('forest_id', '==', userData?.forest_id));
+        
+      unsubPastoral = onSnapshot(pastoralQuery, (snapshot) => {
+        setPastoralRecords(snapshot.docs.map(d => ({ ...d.data(), id: d.id })));
+      }, (err) => handleFirestoreError(err, OperationType.GET, 'pastoral_records'));
+
+      const settlementsQuery = isAdminUser 
+        ? collection(firestoreDb, 'weekly_settlements')
+        : query(collection(firestoreDb, 'weekly_settlements'), where('forest_id', '==', userData?.forest_id));
+        
+      unsubSettlements = onSnapshot(settlementsQuery, (snapshot) => {
+        setWeeklySettlements(snapshot.docs.map(d => ({ ...d.data(), id: d.id })));
+      }, (err) => handleFirestoreError(err, OperationType.GET, 'weekly_settlements'));
+    }
+
+    return () => {
+      unsubUsers();
+      unsubForests();
+      unsubPrograms();
+      unsubAttendance();
+      unsubForestPosts();
+      unsubSchedules();
+      unsubSurveys();
+      unsubWorships();
+      unsubFees();
+      unsubPastoral();
+      unsubSettlements();
+    };
+  }, [isAuthReady, user?.uid, userData?.role, userData?.forest_id, userData?.permissions?.finance]);
+
+  const saveUserToFirestore = async (firebaseUser: FirebaseUser) => {
+    try {
+      const userRef = doc(firestoreDb, 'users', firebaseUser.uid);
+      const userSnap = await getDoc(userRef);
+      
+      if (!userSnap.exists()) {
+        const newUser = {
+          uid: firebaseUser.uid,
+          name: firebaseUser.displayName || '새 사용자',
+          email: firebaseUser.email || '',
+          profile_image: firebaseUser.photoURL || '',
+          role: (firebaseUser.email === 'jumphorse@nate.com' || firebaseUser.email === 'seokgwan.ms01@gmail.com') ? 'admin' : 'member',
+          forest_id: '', // No default forest, user must select one
+          birthdate: '',
+          gender: '',
+          has_kids: false,
+          kids_info: '',
+          privacy_agreed: false,
+          score: 0,
+          phone: '',
+          bio: '',
+          attendance_rate: 0,
+          badges: [],
+          activity_history: [],
+          permissions: {
+            survey: false,
+            finance: false,
+            schedule: false,
+            forest: false,
+            attendance: false
+          },
+          createdAt: Timestamp.now()
+        };
+        await setDoc(userRef, newUser);
+      } else {
+        const updateData: any = {
+          name: firebaseUser.displayName || userSnap.data().name,
+          profile_image: firebaseUser.photoURL || userSnap.data().profile_image,
+          email: firebaseUser.email || userSnap.data().email
+        };
+        // Ensure admin email always has admin role
+        if (firebaseUser.email === 'jumphorse@nate.com' || firebaseUser.email === 'seokgwan.ms01@gmail.com') {
+          updateData.role = 'admin';
+        }
+        await updateDoc(userRef, updateData);
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `users/${firebaseUser.uid}`);
+    }
+  };
+
+  const handleLogin = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      await saveUserToFirestore(result.user);
+      setActiveTab('home');
+      setSubPage(null);
+    } catch (error) {
+      console.error("Login failed:", error);
+      showToast("로그인에 실패했습니다.");
+    }
+  };
+
+  const handleCompleteRegistration = async (registrationData: any) => {
+    if (!user) return;
+    try {
+      const userRef = doc(firestoreDb, 'users', user.uid);
+      await updateDoc(userRef, registrationData);
+      showToast('가입 절차가 완료되었습니다. 환영합니다!');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
+    }
+  };
+
+  const handleKakaoLogin = async () => {
+    const tryLogin = async (providerId: string) => {
+      const provider = new OAuthProvider(providerId);
+      try {
+        const result = await signInWithPopup(auth, provider);
+        const credential = OAuthProvider.credentialFromResult(result);
+
+        if (credential && credential.idToken) {
+          try {
+            const decodedToken: any = jwtDecode(credential.idToken);
+            const kakaoNickname = decodedToken.nickname;
+            const kakaoPicture = decodedToken.picture;
+
+            if (kakaoNickname && !result.user.displayName) {
+              await updateProfile(result.user, {
+                displayName: kakaoNickname,
+                photoURL: kakaoPicture || result.user.photoURL
+              });
+              setUser({ ...result.user, displayName: kakaoNickname, photoURL: kakaoPicture || result.user.photoURL });
+            }
+          } catch (decodeError) {
+            console.error("Token decoding failed:", decodeError);
+          }
+        }
+        await saveUserToFirestore(result.user);
+        setActiveTab('home');
+        setSubPage(null);
+        return true;
+      } catch (error: any) {
+        if (error.code === 'auth/operation-not-allowed') {
+          console.warn(`Provider ID ${providerId} is not allowed. Trying next...`);
+          return false;
+        }
+        throw error;
+      }
+    };
+
+    try {
+      // Try 'oidc.kakao' first
+      let success = await tryLogin('oidc.kakao');
+      if (!success) {
+        // Try 'oidc.oidc.kakao' as a fallback
+        success = await tryLogin('oidc.oidc.kakao');
+      }
+      
+      if (!success) {
+        showToast("카카오 로그인 설정이 올바르지 않습니다.");
+      }
+    } catch (error: any) {
+      console.error("Kakao Login failed:", error);
+      if (error.code === 'auth/popup-blocked') {
+        setShowRedirectLoginModal(true);
+      } else {
+        console.error("Error Code:", error.code);
+        console.error("Error Message:", error.message);
+        console.error("Error Details:", error.customData);
+        showToast(`카카오 로그인 실패: ${error.code}`);
+      }
+    }
+  };
+
+  const handleKakaoRedirectLogin = async () => {
+    const provider = new OAuthProvider('oidc.kakao');
+    try {
+      await signInWithRedirect(auth, provider);
+    } catch (error: any) {
+      console.error("Kakao Redirect Login failed:", error);
+      showToast("카카오 로그인에 실패했습니다.");
+    }
+  };
+
+  const handleVote = async (surveyId: string, optionIndex: number) => {
+    if (!currentUser) return;
+    try {
+      const surveyRef = doc(firestoreDb, 'surveys', surveyId);
+      await updateDoc(surveyRef, {
+        [`responses.${currentUser.uid}`]: optionIndex
+      });
+      showToast('설문 참여가 완료되었습니다.');
+      return true;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `surveys/${surveyId}`);
+      return false;
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setSubPage(null);
+      setActiveTab('home');
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
+
+  // Merge static forest groups with any available Firestore data
+  const mergedForests = FOREST_GROUPS.map(fg => {
+    const dbForest = forests.find((f: any) => f.forest_id === fg.forest_id || f.name === fg.name);
+    return dbForest ? { ...fg, ...dbForest } : fg;
+  });
+
+  // Mock current user combined with Firebase user
+  const currentUser = user ? {
+    ...mockDb.users[0], // Fallback mock data
+    ...userData, // Real Firestore data
+    name: user.displayName || (userData?.name) || (mockDb.users[0] as any).name,
+    email: user.email || (userData?.email) || (mockDb.users[0] as any).email,
+    photoURL: user.photoURL || (userData?.profile_image) || (mockDb.users[0] as any).profile_image,
+    role: (userData?.role === 'admin' || user?.uid === 'sfViap2UZ2alO1kzinMETlcLCxv1' || user?.email === 'seokgwan.ms01@gmail.com' || user?.email === 'jumphorse@nate.com') ? 'admin' : (userData?.role || 'member')
+  } : null;
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-surface flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-24 h-24 bg-primary-container rounded-full flex items-center justify-center mb-8">
+          <TreePine size={48} className="text-primary" />
+        </div>
+        <h1 className="text-3xl font-bold font-headline text-on-surface mb-2">FOREST 3040</h1>
+        <p className="text-on-surface-variant mb-12">함께 믿음으로 성장하는 공동체</p>
+        
+        <button 
+          onClick={handleLogin}
+          className="w-full max-w-sm bg-white border border-surface-container-highest text-on-surface py-4 px-6 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-sm hover:bg-surface-container-lowest transition-colors active:scale-95"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 24 24">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+          </svg>
+          Google 계정으로 로그인
+        </button>
+
+        <button 
+          onClick={handleKakaoLogin}
+          className="w-full max-w-sm mt-3 bg-[#FEE500] text-black/85 py-4 px-6 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-sm hover:bg-[#FEE500]/90 transition-colors active:scale-95"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 3c-5.523 0-10 3.47-10 7.75 0 2.73 1.88 5.13 4.68 6.47-.15.48-.48 1.68-.55 1.95-.09.33.12.33.26.24.11-.08 1.73-1.15 2.45-1.65 1.01.29 2.07.44 3.16.44 5.523 0 10-3.47 10-7.75S17.523 3 12 3z"/>
+          </svg>
+          카카오 로그인
+        </button>
+      </div>
+    );
+  }
+
+  if (userData && !userData.forest_id) {
+    return (
+      <RegistrationView 
+        forests={mergedForests} 
+        onComplete={handleCompleteRegistration} 
+        user={user} 
+      />
+    );
+  }
+
+  const handleNavigateToMyForestBoard = () => {
+    if (userData && userData.forest_id) {
+      setSelectedForestId(userData.forest_id);
+      setSubPage('forest_board');
+    }
+  };
+
+  const renderBottomNav = () => {
+    if (subPage) return null; 
+    return (
+      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto w-full flex justify-between items-center px-2 pb-6 pt-3 bg-[#f7f6f3]/80 backdrop-blur-2xl z-50 shadow-[0px_-10px_40px_rgba(0,0,0,0.04)] rounded-t-[3rem]">
+        <BottomNavItem icon={<Home size={22} className={activeTab === 'home' ? 'fill-current' : ''} />} label="홈" id="home" activeTab={activeTab} onClick={setActiveTab} />
+        <BottomNavItem icon={<Users size={22} className={activeTab === 'members' ? 'fill-current' : ''} />} label="삼성/사성이" id="members" activeTab={activeTab} onClick={setActiveTab} />
+        <BottomNavItem icon={<LayoutGrid size={22} className={activeTab === 'program' ? 'fill-current' : ''} />} label="프로그램" id="program" activeTab={activeTab} onClick={setActiveTab} />
+        <BottomNavItem icon={<BookOpen size={22} className={activeTab === 'worship' ? 'fill-current' : ''} />} label="예배" id="worship" activeTab={activeTab} onClick={setActiveTab} />
+        <BottomNavItem icon={<Calendar size={22} className={activeTab === 'calendar' ? 'fill-current' : ''} />} label="일정" id="calendar" activeTab={activeTab} onClick={setActiveTab} />
+        <BottomNavItem icon={<Baby size={22} className={activeTab === 'kids' ? 'fill-current' : ''} />} label="키즈돌봄" id="kids" activeTab={activeTab} onClick={setActiveTab} />
+      </nav>
+    );
+  };
+
+  return (
+    <div className={`bg-surface font-body selection:bg-primary/20 min-h-screen ${!subPage ? 'pb-32' : 'h-screen overflow-hidden'}`}>
+      {!subPage && (
+        <nav className="sticky top-0 w-full z-50 bg-[#FAF9F6]/80 backdrop-blur-xl flex justify-between items-center px-6 py-4 max-w-md mx-auto left-0 right-0">
+          <div className="flex items-center gap-3 active:scale-95 duration-200 cursor-pointer">
+            <Menu className="text-primary-dim w-6 h-6" />
+            <span className="font-headline font-bold text-lg tracking-tight text-primary-dim">
+              {activeTab === 'home' ? 'FOREST 3040' : 
+               activeTab === 'members' ? '삼성/사성이' : 
+               activeTab === 'program' ? '프로그램' : 
+               activeTab === 'worship' ? '온라인 주보' : 
+               activeTab === 'calendar' ? '일정' : 
+               activeTab === 'kids' ? '키즈돌봄' : 'FOREST 3040'}
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
+            {userData?.role === 'admin' && (
+              <div className="flex items-center gap-2 active:scale-95 duration-200 cursor-pointer" onClick={() => setSubPage('admin')}>
+                <Settings className="text-stone-600 hover:opacity-80 transition-opacity w-6 h-6" />
+              </div>
+            )}
+            <div className="flex items-center gap-2 active:scale-95 duration-200 cursor-pointer">
+              <Bell className="text-stone-600 hover:opacity-80 transition-opacity w-6 h-6" />
+            </div>
+            <div className="flex items-center gap-2 active:scale-95 duration-200 cursor-pointer" onClick={() => setSubPage('mypage')}>
+              <User className="text-stone-600 hover:opacity-80 transition-opacity w-6 h-6" />
+            </div>
+          </div>
+        </nav>
+      )}
+
+      <main className="max-w-md mx-auto">
+        {subPage === 'mypage' && (
+          <MyPageView 
+            user={currentUser} 
+            forests={forests} 
+            attendance={attendance} 
+            onBack={() => setSubPage(null)} 
+            onShowToast={showToast} 
+            onLogout={handleLogout}
+            onNavigateToAdmin={handleNavigateToAdmin}
+          />
+        )}
+        {subPage === 'pastoral_stats' && (
+          <PastoralStatsDashboardView 
+            user={currentUser} 
+            users={users.length>0 ? users : mockDb.users} 
+            forests={mergedForests} 
+            attendance={attendance} 
+            pastoralRecords={pastoralRecords} 
+            weeklySettlements={weeklySettlements}
+            onBack={() => setSubPage(null)} 
+            onShowToast={showToast} 
+          />
+        )}
+        {subPage === 'forest_board' && <ForestBoardView user={currentUser} forestId={selectedForestId} forests={forests} users={users} forestPosts={forestPosts} onBack={() => setSubPage(null)} />}
+        {subPage === 'program_detail' && <ProgramDetailView user={currentUser} programId={selectedProgramId} programs={programs} onBack={() => setSubPage(null)} onShowToast={showToast} />}
+        {subPage === 'attendance' && <AttendanceView user={currentUser} attendance={attendance} onBack={() => setSubPage(null)} onShowToast={showToast} />}
+        {subPage === 'survey' && (
+          <SurveyView 
+            user={currentUser}
+            surveys={surveys}
+            onBack={() => setSubPage(null)} 
+            onShowToast={showToast} 
+            onVote={handleVote}
+          />
+        )}
+        {subPage === 'finance' && (
+          <FinanceView 
+            user={currentUser}
+            fees={fees}
+            onBack={() => setSubPage(null)} 
+            onShowToast={showToast} 
+          />
+        )}
+        {subPage === 'minutes' && <MinutesView onBack={() => setSubPage(null)} onShowToast={showToast} />}
+        {subPage === 'admin' && (
+          <AdminDashboardView 
+            onBack={() => setSubPage(null)} 
+            onNavigateToUsers={() => setSubPage('admin_users')}
+            onNavigateToBoards={() => setSubPage('admin_boards')}
+            onNavigateToSurveys={() => setSubPage('admin_surveys')}
+            onNavigateToFinance={() => setSubPage('admin_finance')}
+            onShowToast={showToast} 
+          />
+        )}
+        {subPage === 'admin_users' && (
+          <AdminUserManagementView 
+            users={users} 
+            onBack={() => setSubPage('admin')} 
+            onShowToast={showToast} 
+          />
+        )}
+        {subPage === 'admin_boards' && (
+          <AdminBoardManagementView 
+            forestPosts={forestPosts}
+            onBack={() => setSubPage('admin')} 
+            onShowToast={showToast} 
+          />
+        )}
+        {subPage === 'admin_surveys' && (
+          <AdminSurveyManagementView 
+            surveys={surveys}
+            onBack={() => setSubPage('admin')} 
+            onShowToast={showToast} 
+          />
+        )}
+        {subPage === 'admin_finance' && (
+          <AdminFinanceManagementView 
+            users={users}
+            fees={fees}
+            onBack={() => setSubPage('admin')} 
+            onShowToast={showToast} 
+          />
+        )}
+        
+        {!subPage && activeTab === 'home' && (
+          <div className="pt-6 px-6 space-y-10">
+            <HomeView 
+              user={currentUser} 
+              schedules={schedules.length > 0 ? schedules : mockDb.schedules} 
+              surveys={surveys}
+              attendance={attendance}
+              onNavigateToMyForestBoard={handleNavigateToMyForestBoard}
+              onNavigate={(page: string) => setSubPage(page)}
+            />
+          </div>
+        )}
+        {!subPage && activeTab === 'members' && (
+          <div className="pt-6 px-6 space-y-10">
+            <MembersView 
+              user={currentUser} 
+              users={users.length>0 ? users : mockDb.users}
+              forests={mergedForests}
+              onOpenBoard={(fId: string) => { setSelectedForestId(fId); setSubPage('forest_board'); }} 
+              onShowToast={showToast}
+              onNavigateToStats={() => setSubPage('pastoral_stats')}
+              onMemberClick={(u: any) => {
+                const canSeePastoral = currentUser?.role === 'admin' || currentUser?.role === 'pastor' || (currentUser?.role === 'leader' && currentUser?.forest_id === u.forest_id);
+                if (canSeePastoral) {
+                  setSelectedPastoralUser(u);
+                } else {
+                  showToast('목양 카드는 숲지기, 목사님, 관리자만 볼 수 있습니다.');
+                }
+              }}
+            />
+          </div>
+        )}
+        {!subPage && activeTab === 'program' && (
+          <ProgramView 
+            user={currentUser}
+            programs={programs.length > 0 ? programs : mockDb.programs} 
+            onNavigateToDetail={(id: string) => { setSelectedProgramId(id); setSubPage('program_detail'); }} 
+            onNavigateToAdd={() => setSubPage('program_add')}
+            onShowToast={showToast} 
+          />
+        )}
+        {subPage === 'program_add' && (
+          <ProgramAddView 
+            onBack={() => setSubPage(null)} 
+            onShowToast={showToast} 
+          />
+        )}
+        {!subPage && activeTab === 'worship' && (
+          <WorshipView 
+            user={currentUser} 
+            worships={worships} 
+            onNavigateToDetail={(id: string) => { setSelectedWorshipId(id); setSubPage('worship_detail'); }}
+            onNavigateToAdd={() => setSubPage('worship_add')}
+            onShowToast={showToast} 
+          />
+        )}
+        {subPage === 'worship_add' && (
+          <WorshipAddView 
+            onBack={() => setSubPage(null)} 
+            onShowToast={showToast} 
+          />
+        )}
+        {subPage === 'worship_detail' && (
+          <WorshipDetailView 
+            worshipId={selectedWorshipId}
+            worships={worships}
+            onBack={() => setSubPage(null)} 
+          />
+        )}
+        {!subPage && activeTab === 'calendar' && <CalendarView schedules={schedules.length > 0 ? schedules : mockDb.schedules} onShowToast={showToast} />}
+        {!subPage && activeTab === 'kids' && <KidsView user={currentUser} onShowToast={showToast} />}
+      </main>
+
+      {selectedPastoralUser && (
+        <PastoralCardModal
+          targetUser={selectedPastoralUser}
+          pastoralRecords={pastoralRecords}
+          attendance={attendance}
+          forests={mergedForests}
+          currentUser={currentUser}
+          onClose={() => setSelectedPastoralUser(null)}
+          onShowToast={showToast}
+        />
+      )}
+
+      {renderBottomNav()}
+      {toastMessage && <Toast message={toastMessage} />}
+      {showRedirectLoginModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center px-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-surface-container-lowest w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-6 mx-auto">
+              <Lock size={32} />
+            </div>
+            <h2 className="text-xl font-headline font-extrabold text-on-surface text-center mb-4">팝업이 차단되었습니다</h2>
+            <p className="text-on-surface-variant text-center text-sm leading-relaxed mb-8">
+              브라우저의 팝업 차단 기능으로 인해 로그인 창을 열 수 없습니다. 페이지 이동 방식으로 로그인을 진행하시겠습니까?
+            </p>
+            <div className="space-y-3">
+              <button 
+                onClick={() => { handleKakaoRedirectLogin(); setShowRedirectLoginModal(false); }}
+                className="w-full py-4 bg-primary text-on-primary rounded-2xl font-bold shadow-lg shadow-primary/20 active:scale-95 transition-all"
+              >
+                페이지 이동으로 로그인
+              </button>
+              <button 
+                onClick={() => setShowRedirectLoginModal(false)}
+                className="w-full py-4 bg-surface-container-high text-on-surface rounded-2xl font-bold active:scale-95 transition-all"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==========================================
+// 3. Sub Views
+// ==========================================
+
+const HomeView = ({ user, schedules, surveys, attendance, onNavigateToMyForestBoard, onNavigate }: any) => {
+  const today = new Date().toISOString().split('T')[0];
+  const hasCheckedInToday = attendance?.some((a: any) => 
+    a.uid === user.uid && 
+    a.date?.toDate && 
+    a.date.toDate().toISOString().split('T')[0] === today
+  );
+
+  const activeSurveys = surveys?.filter((s: any) => s.status === 'active') || [];
+
+  return (
+    <>
+      {/* Greeting Card */}
+      <section className="relative overflow-hidden squircle p-8 bg-gradient-to-br from-emerald-300 to-emerald-400 text-on-primary-container shadow-sm group">
+        <div className="absolute top-0 right-0 -mr-8 -mt-8 w-40 h-40 bg-white/20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
+        <div className="relative z-10">
+          <p className="font-headline text-lg font-semibold opacity-90 mb-1">기쁨 가득한 한 주 되세요, {user.name} 님</p>
+          <div className="flex items-end gap-2">
+            <h1 className="font-headline text-4xl font-extrabold tracking-tight">{user.score}점</h1>
+            <span className="mb-1 text-sm font-bold opacity-75">내 활동 점수</span>
+          </div>
+          <div className="mt-6 flex items-center gap-4">
+            <div className="flex items-center gap-2 bg-white/30 backdrop-blur-md py-2 px-4 rounded-full w-fit">
+              <Flame className="w-4 h-4" fill="currentColor" />
+              <span className="text-xs font-bold uppercase tracking-wider">상위 5%</span>
+            </div>
+          </div>
+        </div>
+        <div className="absolute -bottom-6 -right-6 w-32 h-32 opacity-20">
+          <img 
+            className="w-full h-full object-contain" 
+            alt="상큼한 초록 잎사귀 수채화 텍스처" 
+            src="https://lh3.googleusercontent.com/aida-public/AB6AXuBTliXpNYHI2hYhXGRPTI8UzhskQgAgV_Ea6d0i8IK-htrFSr7OjZD_TFziS-_qPf-aTbB-yelF9F_gNOMm-Ho0lqKqubgQWL3FJwo6_0TW1Dv-g6t61ojCgHZYmcIoBIeMNwxfZGXluLM9SgEi4w9z3EYsc7ADBZ6F4oHAE42NiTNwdLMQMvzdHeIpy2p5RyqXuX13Pt1xvnBNVTp-6rW8-BotFzZreFB8Z2nkpswN4JDil48AEBjijjd2Mm3dST4gwP--BYVT1Q"
+            referrerPolicy="no-referrer"
+          />
+        </div>
+      </section>
+
+      {/* Quick Menu Grid */}
+      <section className="space-y-4">
+        <div className="flex justify-between items-center px-2">
+          <h2 className="font-headline text-xl font-bold tracking-tight text-on-surface">간편 메뉴</h2>
+          <span className="text-xs font-bold text-primary-dim uppercase tracking-widest cursor-pointer">전체보기</span>
+        </div>
+        <div className="grid grid-cols-5 gap-3">
+          <MenuButton icon={<QrCode className="w-6 h-6 text-primary-dim group-hover:scale-110 transition-transform" />} label="출석체크" hoverBg="hover:bg-primary-container" onClick={() => onNavigate('attendance')} />
+          <MenuButton icon={<Users className="w-6 h-6 text-secondary group-hover:scale-110 transition-transform" />} label="숲 모임" hoverBg="hover:bg-secondary-container" onClick={onNavigateToMyForestBoard} />
+          <MenuButton icon={<ClipboardList className="w-6 h-6 text-tertiary group-hover:scale-110 transition-transform" />} label="설문조사" hoverBg="hover:bg-tertiary-container" onClick={() => onNavigate('survey')} />
+          <MenuButton icon={<Wallet className="w-6 h-6 text-emerald-800 group-hover:scale-110 transition-transform" />} label="회비납부" hoverBg="hover:bg-emerald-100" onClick={() => onNavigate('finance')} />
+          <MenuButton icon={<FileText className="w-6 h-6 text-blue-800 group-hover:scale-110 transition-transform" />} label="회의록" hoverBg="hover:bg-blue-100" onClick={() => onNavigate('minutes')} />
+        </div>
+      </section>
+
+      {/* Active Surveys Section */}
+      {activeSurveys.length > 0 && (
+        <section className="space-y-4">
+          <div className="flex justify-between items-center px-2">
+            <h2 className="font-headline text-xl font-bold tracking-tight text-on-surface">진행 중인 설문</h2>
+            <span onClick={() => onNavigate('survey')} className="text-xs font-bold text-primary cursor-pointer">더보기</span>
+          </div>
+          <div className="space-y-3">
+            {activeSurveys.map((survey: any) => (
+              <div 
+                key={survey.id} 
+                onClick={() => onNavigate('survey')}
+                className="bg-tertiary-container/20 border border-tertiary-container/30 p-5 rounded-3xl flex items-center justify-between group cursor-pointer hover:bg-tertiary-container/30 transition-all"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="bg-tertiary text-on-tertiary p-2.5 rounded-2xl">
+                    <ClipboardList size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-on-surface">{survey.title}</h3>
+                    <p className="text-xs text-on-surface-variant mt-0.5">{survey.deadline?.toDate ? `마감: ${survey.deadline.toDate().toLocaleDateString()}` : '진행 중'}</p>
+                  </div>
+                </div>
+                <ChevronRight size={20} className="text-tertiary group-hover:translate-x-1 transition-transform" />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Upcoming Schedule Section */}
+    <section className="space-y-6">
+      <div className="flex justify-between items-center px-2">
+        <h2 className="font-headline text-xl font-bold tracking-tight text-on-surface">다가오는 일정</h2>
+        <div className="flex gap-1">
+          <div className="w-2 h-2 rounded-full bg-primary"></div>
+          <div className="w-2 h-2 rounded-full bg-surface-container-highest"></div>
+        </div>
+      </div>
+      <div className="space-y-4">
+        {schedules
+          .filter((s: any) => s.active !== false)
+          .sort((a: any, b: any) => (a.fullDate || '').localeCompare(b.fullDate || ''))
+          .slice(0, 5)
+          .map((schedule: any) => {
+            const parts = schedule.fullDate ? schedule.fullDate.split('-') : [];
+            const month = parts.length >= 2 ? parseInt(parts[1]) + '월' : '';
+            const day = parts.length >= 3 ? parseInt(parts[2]) + '' : '';
+            return (
+              <ScheduleItem
+                key={schedule.id}
+                month={month}
+                day={day}
+                dDay={schedule.d_day}
+                time={schedule.time}
+                title={schedule.title}
+                location={schedule.location}
+                dDayClass={schedule.active ? "bg-error-container/20 text-on-error-container" : "bg-surface-container-high text-on-surface-variant"}
+                active={schedule.active}
+              />
+            );
+          })}
+      </div>
+    </section>
+
+    {/* Community Highlight */}
+    <section className="bg-tertiary-container/30 squircle overflow-hidden p-6 relative">
+      <div className="relative z-10 flex flex-col gap-4">
+        <span className="bg-tertiary text-on-tertiary text-[10px] font-bold uppercase tracking-[0.2em] px-3 py-1 rounded-full w-fit">멤버 이야기</span>
+        <h4 className="font-headline text-2xl font-extrabold text-on-tertiary-container leading-tight">매일의 신앙 산책 속에서 평안을 찾다.</h4>
+        <div className="flex items-center gap-3 mt-2">
+          <div className="w-10 h-10 rounded-full border-2 border-white overflow-hidden">
+            <img 
+              className="w-full h-full object-cover" 
+              alt="웃고 있는 한국인 남성 멤버 프로필" 
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuA8iYWtDYB66oP6sVlyf1a1oU9e0bn0UolNyAnjiC4cWxvHHehWeK9fvFgv0MrgPHoetw6Gq74dA4LgaTdZ7QUeKwew2-w93mRv3ZOtjGJtIjb7QSJr_UNQt6k_7HiZ_QT1aRRuKgH-LeRplKy5hLDK23z4FMjTWeDbDRAte4VGf1kwa4UX9Hv68vGl3z0NyddNszTU_BOBrLFbYvTI0w3ZTQRcNbXYhqOwWj2luL7zQmuxsm55pEMyZpNPRyllwo5gchEdny8YpA"
+              referrerPolicy="no-referrer"
+            />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-sm font-bold text-on-tertiary-container">다윗 민</span>
+            <span className="text-[10px] font-medium text-tertiary-dim uppercase">디자인 팀</span>
+          </div>
+        </div>
+      </div>
+      <div className="absolute top-0 right-0 w-1/2 h-full">
+        <img 
+          className="w-full h-full object-cover mix-blend-multiply opacity-20" 
+          alt="가을 숲의 부드러운 배경" 
+          src="https://lh3.googleusercontent.com/aida-public/AB6AXuDbWVS0jJsnx05Pemrlg8SarOQuUSDp0emLH_KtYNKtZrnmHdvbmGzAMCBJru2-poOs2AR8pdpCx8PHwGzRHJGODwnEjjZFj9bDlayCSSLjBPXxCOTCKMyDb7wPEoSprE1u36FcBS77CVhkXsjcS4qjlhP2plOsn7bhJ1nzX32Xo2Qq0klT6aLFyNc3gtMNKTgfMDWmhv-v7eOWeMxB1zLwwK6hGNcEo3pFocbyNAOUSZ1Vnrh6a25wv5ZAHYx6LICCr3RyHUTYEg"
+          referrerPolicy="no-referrer"
+        />
+      </div>
+    </section>
+    </>
+  );
+};
+
+const MembersView = ({ user, users, forests, onOpenBoard, onShowToast, onMemberClick, onNavigateToStats }: any) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeMembersTab, setActiveMembersTab] = useState('all'); // all, ministry, forest
+  const [expandedForests, setExpandedForests] = useState<Record<string, boolean>>({});
+
+  const searchResults = searchQuery
+    ? users.filter((u: any) => {
+        const forest = forests.find((f: any) => f.forest_id === u.forest_id);
+        const forestName = forest?.name || '';
+        return u.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+               forestName.toLowerCase().includes(searchQuery.toLowerCase());
+      })
+    : [];
+
+  const getForestEmoji = (forestId: string) => {
+    switch(forestId) {
+      case 'bebe': return '👶';
+      case 'superpower': return '💪';
+      case 'supermance': return '🏃';
+      case 'bts': return '🌟';
+      case 'haneul': return '☁️';
+      case 'bamboo': return '🎋';
+      case 'tta': return '☕';
+      case 'pureun': return '🌲';
+      case 'goyo': return '🤫';
+      case 'supreme': return '🧢';
+      case 'start': return '🚀';
+      default: return '🌳';
+    }
+  };
+
+  const toggleForest = (forestId: string) => {
+    setExpandedForests(prev => ({...prev, [forestId]: !prev[forestId]}));
+  };
+
+  const ministries = ['예배팀', '새가족팀', '기획팀', '선교봉사팀', '관리팀'];
+
+  return (
+    <div className="space-y-6 pb-24">
+      {/* Header Section */}
+      <div className="flex items-start justify-between px-2">
+        <div className="flex flex-col gap-2">
+          <h2 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">삼성/사성이</h2>
+          <p className="text-sm font-medium text-on-surface-variant">FOREST 3040의 모든 가족들을 만나보세요.</p>
+        </div>
+        {(user?.role === 'admin' || user?.role === 'leader') && (
+          <button onClick={() => onNavigateToStats?.()} className="p-3 bg-primary/10 text-primary rounded-xl active:scale-95 transition-transform flex flex-col items-center justify-center gap-1 shadow-sm shrink-0">
+            <PieChart size={20} />
+            <span className="text-[10px] font-bold">목양 통계</span>
+          </button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex bg-surface-container-lowest p-1.5 rounded-[1.25rem] shadow-sm">
+        {[
+          { id: 'all', label: '전체' },
+          { id: 'ministry', label: '사역' },
+          { id: 'forest', label: '숲그룹' }
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveMembersTab(tab.id)}
+            className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-all ${
+              activeMembersTab === tab.id 
+                ? 'bg-white shadow-sm text-primary' 
+                : 'text-on-surface-variant hover:text-on-surface hover:bg-white/50'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Search Bar */}
+      <div className="relative group">
+        <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+          <Search className="text-outline group-focus-within:text-primary transition-colors" size={20} />
+        </div>
+        <input
+          type="text"
+          placeholder="이름으로 검색하세요..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full pl-14 pr-5 py-4 bg-surface-container-lowest squircle shadow-[0_4px_20px_rgba(0,0,0,0.03)] border-none focus:ring-2 focus:ring-primary/30 transition-all font-body text-on-surface placeholder:text-outline-variant outline-none"
+        />
+      </div>
+
+      {searchQuery ? (
+        <div className="bg-surface-container-lowest p-3 squircle shadow-sm">
+          {searchResults.length > 0 ? (
+            <div className="space-y-1">
+              {searchResults.map((member: any) => (
+                <MemberRow key={member.uid} member={member} forests={forests} onClick={() => onMemberClick?.(member)} />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-10 opacity-70">
+              <UserCircle size={40} className="text-outline mb-3" />
+              <p className="text-on-surface-variant text-sm font-medium">검색 결과가 없습니다.</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {activeMembersTab === 'all' && (
+            <div className="bg-surface-container-lowest p-3 squircle shadow-sm space-y-1">
+              {users.map((member: any) => (
+                <MemberRow key={member.uid} member={member} forests={forests} onClick={() => onMemberClick?.(member)} />
+              ))}
+            </div>
+          )}
+
+          {activeMembersTab === 'ministry' && (
+            <div className="space-y-6">
+              {ministries.map(ministry => {
+                const teamMembers = users.filter((u: any) => u.ministry === ministry);
+                if (teamMembers.length === 0) return null;
+                return (
+                  <div key={ministry} className="bg-surface-container-lowest p-5 squircle shadow-sm">
+                    <h3 className="font-bold text-on-surface text-lg tracking-tight mb-4 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-primary"></span> {ministry}
+                    </h3>
+                    <div className="space-y-1">
+                      {teamMembers.map((member: any) => (
+                        <MemberRow key={member.uid} member={member} forests={forests} onClick={() => onMemberClick?.(member)} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {activeMembersTab === 'forest' && (
+            <div className="space-y-4">
+              {forests.map((forest: any) => {
+                const forestMembers = users.filter((u: any) => u.forest_id === forest.forest_id);
+                const leader = users.find((u: any) => u.forest_id === forest.forest_id && u.role === 'leader');
+                const leaderName = leader ? leader.name : '공석';
+                const isExpanded = expandedForests[forest.forest_id];
+
+                return (
+                  <div key={forest.forest_id} className="bg-surface-container-lowest p-5 squircle shadow-sm relative overflow-hidden transition-all duration-300 border border-transparent hover:border-surface-container-low">
+                    <div 
+                      className="flex justify-between items-center cursor-pointer select-none"
+                      onClick={() => toggleForest(forest.forest_id)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="text-3xl bg-surface-container p-3 rounded-2xl shadow-inner border border-surface-container-high/50">
+                          {getForestEmoji(forest.forest_id)}
+                        </div>
+                        <div className="flex flex-col">
+                          <h3 className="font-extrabold text-on-surface text-lg">{forest.name}</h3>
+                          <div className="flex items-center gap-2 text-xs text-on-surface-variant font-bold mt-0.5">
+                            <span>{forestMembers.length}명</span>
+                            <span className="w-1 h-1 bg-outline-variant rounded-full"></span>
+                            <span className="flex items-center gap-0.5">👑 {leaderName}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center transition-transform duration-300">
+                        <ChevronRight size={20} className={`text-on-surface-variant transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`} />
+                      </div>
+                    </div>
+                    
+                    <div className={`grid transition-all duration-500 ease-in-out ${isExpanded ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0'}`}>
+                      <div className="overflow-hidden space-y-1">
+                        <div className="pt-2 border-t border-surface-container-low space-y-1 gap-1 flex flex-col">
+                          {forestMembers.map((member: any) => (
+                            <MemberRow key={member.uid} member={member} forests={forests} onClick={() => onMemberClick?.(member)} />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ForestBoardView = ({ user, forestId, forests, users, forestPosts, onBack }: any) => {
+  const forest = forests.find((f: any) => f.forest_id === forestId);
+  const forestMembers = users.filter((u: any) => u.forest_id === forestId);
+  const [posts, setPosts] = useState(forestPosts.filter((p: any) => p.forest_id === forestId));
+  const [newPost, setNewPost] = useState('');
+
+  useEffect(() => {
+    setPosts(forestPosts.filter((p: any) => p.forest_id === forestId));
+  }, [forestPosts, forestId]);
+
+  const handleSend = async () => {
+    if (!newPost.trim()) return;
+    
+    try {
+      const newPostObj = {
+        forest_id: forestId,
+        author_uid: user.uid,
+        author_name: user.name,
+        content: newPost,
+        date: Timestamp.now(),
+        comments: 0
+      };
+      
+      await addDoc(collection(firestoreDb, 'forest_posts'), newPostObj);
+      setNewPost('');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'forest_posts');
+    }
+  };
+
+  return (
+    <div className="absolute inset-0 bg-surface z-[60] flex flex-col min-h-screen">
+      <div className="bg-surface-container-lowest/80 backdrop-blur-xl px-4 py-4 flex items-center shadow-sm sticky top-0 z-10">
+        <button onClick={onBack} className="p-2 mr-2 text-on-surface hover:bg-surface-container rounded-full transition">
+          <ArrowLeft size={24} />
+        </button>
+        <h2 className="text-lg font-headline font-bold text-on-surface">{forest?.name} 전용 게시판 🤫</h2>
+      </div>
+
+      {/* Forest Members Quick View */}
+      <div className="bg-surface-container-lowest border-b border-surface-container px-6 py-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-bold text-outline uppercase tracking-widest">우리 숲 멤버</h3>
+          <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+            {forestMembers.length}명
+          </span>
+        </div>
+        <div className="flex -space-x-2 overflow-hidden">
+          {forestMembers.map((member: any) => (
+            <div key={member.uid} className="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-primary-container text-on-primary-container flex items-center justify-center text-[10px] font-bold overflow-hidden shadow-sm">
+              {member.profile_image ? (
+                <img src={member.profile_image} alt={member.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              ) : (
+                <span>{member.name.charAt(0)}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="p-4 space-y-4 flex-1 overflow-y-auto pb-24">
+        {posts.length === 0 && (
+          <div className="text-center py-16">
+            <div className="w-16 h-16 bg-surface-container rounded-full flex items-center justify-center mx-auto mb-4">
+              <MessageSquare size={28} className="text-outline" />
+            </div>
+            <p className="text-on-surface-variant text-sm font-body">아직 작성된 글이 없습니다.<br/>우리 숲의 첫 번째 이야기를 남겨보세요!</p>
+          </div>
+        )}
+        
+        {posts.map(post => (
+          <div key={post.id} className="bg-surface-container-lowest p-5 squircle shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary-container text-on-primary-container rounded-full flex items-center justify-center font-bold text-sm">
+                  {post.author_name.charAt(0)}
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-on-surface flex items-center gap-1">
+                    {post.author_name} {post.author_uid === forest?.leader_uid ? '👑' : ''}
+                  </p>
+                  <p className="text-[11px] text-on-surface-variant">
+                    {post.date?.toDate ? post.date.toDate().toLocaleString() : 
+                     (post.date?.seconds ? new Date(post.date.seconds * 1000).toLocaleString() : String(post.date || ''))}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <p className="text-sm text-on-surface whitespace-pre-line leading-relaxed font-body">{post.content}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 bg-surface-container-lowest/90 backdrop-blur-lg border-t border-surface-container p-3 pb-safe z-50 flex items-end gap-2">
+        <textarea
+          placeholder="우리 숲 멤버들과 이야기를 나누세요."
+          value={newPost}
+          onChange={e => setNewPost(e.target.value)}
+          className="flex-1 bg-surface-container-low rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none max-h-24 font-body"
+          rows={1}
+        />
+        <button onClick={handleSend} className="bg-primary text-on-primary p-3 rounded-full hover:bg-primary-dim flex-shrink-0 transition mb-0.5">
+          <Send size={18} className="-ml-0.5 mt-0.5" />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const AdminDashboardView = ({ onBack, onNavigateToUsers, onNavigateToBoards, onNavigateToSurveys, onNavigateToFinance, onShowToast }: any) => {
+  const adminMenus = [
+    { id: 'users', label: '회원 권한 관리', icon: <Users size={24} />, onClick: onNavigateToUsers, desc: '사용자별 메뉴 접근 권한을 설정합니다.' },
+    { id: 'boards', label: '게시판 관리', icon: <MessageSquare size={24} />, onClick: onNavigateToBoards, desc: '숲별 게시판의 게시글을 관리합니다.' },
+    { id: 'surveys', label: '설문조사 관리', icon: <ClipboardList size={24} />, onClick: onNavigateToSurveys, desc: '진행 중인 설문조사를 관리합니다.' },
+    { id: 'finance', label: '회비/재정 관리', icon: <Wallet size={24} />, onClick: onNavigateToFinance, desc: '공동체 재정 및 회비 납부 현황을 관리합니다.' },
+  ];
+
+  return (
+    <div className="absolute inset-0 bg-surface z-[60] flex flex-col min-h-screen overflow-y-auto pb-24">
+      <header className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-surface-container-highest">
+        <div className="flex items-center px-2 py-3">
+          <button onClick={onBack} className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
+            <ChevronLeft size={24} />
+          </button>
+          <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">관리자 대시보드</h1>
+        </div>
+      </header>
+      
+      <div className="p-6 space-y-6">
+        <div className="bg-primary-container/30 p-6 rounded-3xl border border-primary-container/50">
+          <div className="flex items-center gap-4 mb-2">
+            <div className="bg-primary text-on-primary p-2 rounded-xl">
+              <Settings size={20} />
+            </div>
+            <h2 className="text-xl font-headline font-extrabold text-on-surface">Admin Dashboard</h2>
+          </div>
+          <p className="text-sm text-on-surface-variant">공동체 운영에 필요한 모든 도구가 여기에 있습니다.</p>
+        </div>
+
+        <div className="grid gap-4">
+          {adminMenus.map(menu => (
+            <button 
+              key={menu.id}
+              onClick={menu.onClick}
+              className="flex items-center gap-4 p-5 bg-surface-container-lowest rounded-3xl border border-surface-container-low shadow-sm hover:border-primary transition-all text-left group active:scale-95"
+            >
+              <div className="bg-surface-container-high text-primary p-3 rounded-2xl group-hover:bg-primary group-hover:text-on-primary transition-colors">
+                {menu.icon}
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-on-surface">{menu.label}</h3>
+                <p className="text-xs text-on-surface-variant mt-0.5">{menu.desc}</p>
+              </div>
+              <ChevronRight size={20} className="text-outline group-hover:text-primary" />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AdminBoardManagementView = ({ forestPosts, onBack, onShowToast }: any) => {
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const handleDeletePost = async (postId: string) => {
+    try {
+      await updateDoc(doc(firestoreDb, 'forest_posts', postId), { deleted: true });
+      onShowToast('게시글이 삭제되었습니다.');
+      setConfirmDeleteId(null);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `forest_posts/${postId}`);
+    }
+  };
+
+  // Filter out deleted posts if any (though we might want to see them as admin)
+  const activePosts = forestPosts.filter((p: any) => !p.deleted);
+
+  return (
+    <div className="absolute inset-0 bg-surface z-[60] flex flex-col min-h-screen overflow-y-auto pb-24">
+      <header className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-surface-container-highest">
+        <div className="flex items-center px-2 py-3">
+          <button onClick={onBack} className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
+            <ChevronLeft size={24} />
+          </button>
+          <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">게시판 관리</h1>
+        </div>
+      </header>
+
+      <div className="p-6 space-y-4">
+        {activePosts.length === 0 ? (
+          <div className="text-center py-20">
+            <MessageSquare size={48} className="mx-auto text-outline mb-4 opacity-20" />
+            <p className="text-on-surface-variant">관리할 게시글이 없습니다.</p>
+          </div>
+        ) : (
+          activePosts.map((post: any) => (
+            <div key={post.id} className="bg-surface-container-lowest p-5 rounded-3xl border border-surface-container-low shadow-sm space-y-3">
+              <div className="flex justify-between items-start">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-surface-container-high rounded-full flex items-center justify-center text-xs font-bold">
+                    {post.author_name?.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-on-surface">{post.author_name}</p>
+                    <p className="text-[10px] text-on-surface-variant">
+                      {post.date?.toDate ? post.date.toDate().toLocaleString() : 
+                       (post.date?.seconds ? new Date(post.date.seconds * 1000).toLocaleString() : String(post.date || ''))}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setConfirmDeleteId(post.id)}
+                  className="p-2 text-error hover:bg-error/10 rounded-full transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <p className="text-sm text-on-surface leading-relaxed line-clamp-3">{post.content}</p>
+              <div className="pt-2 flex items-center gap-2">
+                <span className="text-[10px] bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded-full font-bold">
+                  Forest ID: {post.forest_id}
+                </span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Custom Confirmation Dialog */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
+          <div className="bg-surface p-6 rounded-[2.5rem] shadow-2xl max-w-xs w-full text-center space-y-6">
+            <div className="w-16 h-16 bg-error/10 text-error rounded-full flex items-center justify-center mx-auto">
+              <XCircle size={32} />
+            </div>
+            <div>
+              <h3 className="text-xl font-headline font-extrabold text-on-surface">게시글 삭제</h3>
+              <p className="text-sm text-on-surface-variant mt-2">정말로 이 게시글을 삭제하시겠습니까?<br/>삭제된 글은 복구할 수 없습니다.</p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <button 
+                onClick={() => handleDeletePost(confirmDeleteId)}
+                className="w-full py-4 bg-error text-white rounded-2xl font-bold active:scale-95 transition-transform"
+              >
+                삭제하기
+              </button>
+              <button 
+                onClick={() => setConfirmDeleteId(null)}
+                className="w-full py-4 bg-surface-container-high text-on-surface rounded-2xl font-bold active:scale-95 transition-transform"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const AdminSurveyManagementView = ({ surveys, onBack, onShowToast }: any) => {
+  const handleDeleteSurvey = async (surveyId: string) => {
+    try {
+      await deleteDoc(doc(firestoreDb, 'surveys', surveyId));
+      onShowToast('설문이 삭제되었습니다.');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `surveys/${surveyId}`);
+    }
+  };
+
+  const handleToggleStatus = async (surveyId: string, currentStatus: string) => {
+    try {
+      await updateDoc(doc(firestoreDb, 'surveys', surveyId), {
+        status: currentStatus === 'active' ? 'closed' : 'active'
+      });
+      onShowToast(`설문이 ${currentStatus === 'active' ? '마감' : '시작'}되었습니다.`);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `surveys/${surveyId}`);
+    }
+  };
+
+  return (
+    <div className="absolute inset-0 bg-surface z-[60] flex flex-col min-h-screen overflow-y-auto pb-24">
+      <header className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-surface-container-highest">
+        <div className="flex items-center px-2 py-3">
+          <button onClick={onBack} className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
+            <ChevronLeft size={24} />
+          </button>
+          <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">설문조사 관리</h1>
+        </div>
+      </header>
+
+      <div className="p-6 space-y-4">
+        {surveys.length === 0 ? (
+          <div className="text-center py-20">
+            <ClipboardList size={48} className="mx-auto text-outline mb-4 opacity-20" />
+            <p className="text-on-surface-variant">관리할 설문이 없습니다.</p>
+          </div>
+        ) : (
+          surveys.map((survey: any) => (
+            <div key={survey.id} className="bg-surface-container-lowest p-5 rounded-3xl border border-surface-container-low shadow-sm space-y-4">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <h3 className="font-bold text-on-surface">{survey.title}</h3>
+                  <p className="text-xs text-on-surface-variant mt-1">{survey.description}</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button 
+                    onClick={() => handleToggleStatus(survey.id, survey.status)}
+                    className={`p-2 rounded-full transition-colors ${survey.status === 'active' ? 'text-primary hover:bg-primary/10' : 'text-outline hover:bg-surface-container'}`}
+                    title={survey.status === 'active' ? '마감하기' : '시작하기'}
+                  >
+                    {survey.status === 'active' ? <CheckCircle2 size={18} /> : <Play size={18} />}
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteSurvey(survey.id)}
+                    className="p-2 text-error hover:bg-error/10 rounded-full transition-colors"
+                    title="삭제하기"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+              
+              <div className="pt-2 border-t border-surface-container flex items-center justify-between text-[10px] font-bold">
+                <span className={`px-2 py-0.5 rounded-full ${survey.status === 'active' ? 'bg-primary/10 text-primary' : 'bg-surface-container-high text-on-surface-variant'}`}>
+                  {survey.status === 'active' ? '진행중' : '마감됨'}
+                </span>
+                <span className="text-on-surface-variant">
+                  참여 인원: {Object.keys(survey.responses || {}).length}명
+                </span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+const AdminFinanceManagementView = ({ users, fees, onBack, onShowToast }: any) => {
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+  const handleToggleFeeStatus = async (user: any) => {
+    const existingFee = fees.find((f: any) => f.uid === user.uid && f.year === selectedYear && f.month === selectedMonth);
+    
+    try {
+      if (existingFee) {
+        await updateDoc(doc(firestoreDb, 'fees', existingFee.id), {
+          status: existingFee.status === 'paid' ? 'unpaid' : 'paid',
+          paid_at: existingFee.status === 'paid' ? null : Timestamp.now()
+        });
+      } else {
+        await addDoc(collection(firestoreDb, 'fees'), {
+          uid: user.uid,
+          user_name: user.name,
+          year: selectedYear,
+          month: selectedMonth,
+          amount: 10000, // Default fee amount
+          status: 'paid',
+          paid_at: Timestamp.now()
+        });
+      }
+      onShowToast(`${user.name}님의 회비 상태가 업데이트되었습니다.`);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'fees');
+    }
+  };
+
+  return (
+    <div className="absolute inset-0 bg-surface z-[60] flex flex-col min-h-screen overflow-y-auto pb-24">
+      <header className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-surface-container-highest">
+        <div className="flex items-center px-2 py-3">
+          <button onClick={onBack} className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
+            <ChevronLeft size={24} />
+          </button>
+          <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">회비 관리</h1>
+        </div>
+      </header>
+
+      <div className="p-6 space-y-6">
+        <div className="flex items-center gap-4 bg-surface-container-lowest p-4 rounded-2xl border border-surface-container-low shadow-sm">
+          <div className="flex-1">
+            <label className="block text-[10px] font-bold text-outline uppercase mb-1">연도</label>
+            <select 
+              value={selectedYear} 
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="w-full bg-transparent font-bold text-on-surface outline-none"
+            >
+              {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}년</option>)}
+            </select>
+          </div>
+          <div className="w-px h-8 bg-surface-container-high"></div>
+          <div className="flex-1">
+            <label className="block text-[10px] font-bold text-outline uppercase mb-1">월</label>
+            <select 
+              value={selectedMonth} 
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+              className="w-full bg-transparent font-bold text-on-surface outline-none"
+            >
+              {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => <option key={m} value={m}>{m}월</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="text-sm font-bold text-on-surface px-2">회원별 납부 현황</h3>
+          {users.map((u: any) => {
+            const fee = fees.find((f: any) => f.uid === u.uid && f.year === selectedYear && f.month === selectedMonth);
+            const isPaid = fee?.status === 'paid';
+            
+            return (
+              <div key={u.uid} className="bg-surface-container-lowest p-4 rounded-2xl flex items-center justify-between border border-surface-container-low shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-surface-container-high rounded-full flex items-center justify-center text-sm font-bold overflow-hidden">
+                    {u.profile_image ? <img src={u.profile_image} alt={u.name} className="w-full h-full object-cover" /> : u.name.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="font-bold text-on-surface text-sm">{u.name}</p>
+                    <p className="text-[10px] text-on-surface-variant">{u.forest_id || '소속 없음'}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => handleToggleFeeStatus(u)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                    isPaid 
+                      ? 'bg-emerald-500 text-white shadow-sm' 
+                      : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'
+                  }`}
+                >
+                  {isPaid ? '납부완료' : '미납'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
