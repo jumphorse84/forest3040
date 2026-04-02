@@ -3,7 +3,7 @@ import {
   ChevronLeft, BookOpen, Users, Music, Megaphone, Play,
   ChevronRight, Calendar, MoreVertical, Edit, Trash2, X, Save, Plus, Camera, Search
 } from 'lucide-react';
-import { collection, doc, addDoc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db as firestoreDb, storage } from '../firebase';
 import { OperationType, handleFirestoreError } from '../App';
@@ -50,16 +50,6 @@ const WorshipDetailView = ({
     return `${d.getFullYear()}년 ${String(d.getMonth() + 1).padStart(2, '0')}월 ${String(d.getDate()).padStart(2, '0')}일`;
   };
 
-  const handleRegister = async () => {
-    if (!user) { onShowToast?.('로그인이 필요합니다.'); return; }
-    try {
-      await addDoc(collection(firestoreDb, 'attendance'), {
-        uid: user.uid, user_name: user.name, date: Timestamp.now(),
-        type: '예배등록', worship_id: worshipId, worship_title: worship.title, status: '등록완료'
-      });
-      onShowToast?.('예배 등록이 완료되었습니다.');
-    } catch (err) { handleFirestoreError(err, OperationType.WRITE, 'attendance'); }
-  };
 
   const handleDelete = async () => {
     if (!window.confirm('이 예배 정보를 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.')) return;
@@ -329,7 +319,7 @@ const WorshipDetailView = ({
   })();
 
   return (
-    <div className="flex flex-col bg-surface min-h-screen pb-28 absolute inset-0 z-50">
+    <div className="flex flex-col bg-surface min-h-screen pb-6 absolute inset-0 z-50 overflow-y-auto">
 
       {/* Sticky Header */}
       <header className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-surface-container-highest">
@@ -489,13 +479,7 @@ const WorshipDetailView = ({
         )}
       </div>
 
-      {/* Bottom CTA */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-surface/90 backdrop-blur-md border-t border-surface-container-highest p-4 z-40">
-        <button onClick={handleRegister}
-          className="w-full py-4 bg-primary text-on-primary rounded-2xl text-base font-bold shadow-lg shadow-primary/20 hover:-translate-y-0.5 transform transition-all duration-200 active:scale-95">
-          예배 등록하기
-        </button>
-      </div>
+
     </div>
   );
 };
