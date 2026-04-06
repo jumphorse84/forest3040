@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -153,6 +153,8 @@ import ProgramDetailView from './views/ProgramDetailView';
 import WorshipView from './views/WorshipView';
 import WorshipAddView from './views/WorshipAddView';
 import WorshipDetailView from './views/WorshipDetailView';
+import ForestCommunityView from './views/ForestCommunityView';
+
 import KidsView from './views/KidsView';
 import CalendarView from './views/CalendarView';
 import SurveyView from './views/SurveyView';
@@ -539,7 +541,7 @@ export default function App() {
     name: user.displayName || (userData?.name) || (mockDb.users[0] as any).name,
     email: user.email || (userData?.email) || (mockDb.users[0] as any).email,
     photoURL: user.photoURL || (userData?.profile_image) || (mockDb.users[0] as any).profile_image,
-    role: (userData?.role === 'admin' || user?.uid === 'sfViap2UZ2alO1kzinMETlcLCxv1' || user?.email === 'seokgwan.ms01@gmail.com' || user?.email === 'jumphorse@nate.com') ? 'admin' : (userData?.role || 'member')
+    uid: user.uid, role: (userData?.role === 'admin' || user?.uid === 'sfViap2UZ2alO1kzinMETlcLCxv1' || user?.email === 'seokgwan.ms01@gmail.com' || user?.email === 'jumphorse@nate.com') ? 'admin' : (userData?.role || 'member')
   } : null;
 
   const showToast = (msg: string) => {
@@ -603,7 +605,7 @@ export default function App() {
   const handleNavigateToMyForestBoard = () => {
     if (userData && userData.forest_id) {
       setSelectedForestId(userData.forest_id);
-      setSubPage('forest_board');
+      setSubPage('forest_community');
     }
   };
 
@@ -677,6 +679,9 @@ export default function App() {
           />
         )}
         {subPage === 'forest_board' && <ForestBoardView user={currentUser} forestId={selectedForestId} forests={forests} users={users} forestPosts={forestPosts} onBack={() => setSubPage(null)} />}
+        {subPage === 'forest_community' && (
+          <ForestCommunityView onBack={() => setSubPage(null)} user={currentUser} userData={userData} onShowToast={showToast} />
+        )}
         {subPage === 'program_detail' && <ProgramDetailView user={currentUser} programId={selectedProgramId} programs={programs} onBack={() => setSubPage(null)} onShowToast={showToast} />}
         {subPage === 'attendance' && <AttendanceView user={currentUser} attendance={attendance} onBack={() => setSubPage(null)} onShowToast={showToast} />}
         {subPage === 'survey' && (
@@ -755,7 +760,7 @@ export default function App() {
               user={currentUser} 
               users={users.length>0 ? users : mockDb.users}
               forests={mergedForests}
-              onOpenBoard={(fId: string) => { setSelectedForestId(fId); setSubPage('forest_board'); }} 
+              onOpenBoard={(fId: string) => { setSelectedForestId(fId); setSubPage('forest_community'); }} 
               onShowToast={showToast}
               onNavigateToStats={() => setSubPage('pastoral_stats')}
               onMemberClick={(u: any) => {
@@ -1998,4 +2003,8 @@ const PastoralCardModal = ({ targetUser, pastoralRecords, onClose, currentUser, 
     </div>
   );
 };
+
+
+
+
 

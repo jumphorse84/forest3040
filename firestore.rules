@@ -143,5 +143,23 @@ service cloud.firestore {
       );
       allow update, delete: if isAdmin() || isPastor();
     }
+
+    // Forest Community Chat rules
+    match /forest_chats/{chatId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAuthenticated() && (isAdmin() || resource.data.userId == request.auth.uid);
+    }
+
+    // Forest Community Story rules
+    match /forest_stories/{storyId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAuthenticated() && (isAdmin() || (!('userId' in resource.data)) || resource.data.userId == request.auth.uid);
+    }
+
+    // Weekly Column rules
+    match /weekly_columns/{columnId} {
+      allow read, write: if isAuthenticated();
+    }
   }
 }
+
