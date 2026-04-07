@@ -86,9 +86,11 @@ export default function KidsCareDetailView({ kidsCareId, kidsCares, user, onBack
 
   const overallStatus = myApplication ? getOverallStatus(myApplication.children || []) : null;
   const statusIndex = overallStatus ? STATUS_STEPS.findIndex(s => s.key === overallStatus) : -1;
+  // Show fixed bottom button only when no application yet
+  const showFixedApplyButton = !loadingApp && !myApplication;
 
   return (
-    <div className="bg-[#FAF9F6] min-h-screen pb-36 font-body">
+    <div className="bg-[#FAF9F6] min-h-screen pb-28 font-body">
       <nav className="sticky top-0 z-50 bg-[#FAF9F6]/90 backdrop-blur-xl px-6 py-4 max-w-md mx-auto flex items-center gap-3">
         <button onClick={onBack} className="active:scale-95 transition-transform p-1">
           <ChevronLeft className="text-[#0F6045] w-6 h-6" />
@@ -261,22 +263,33 @@ export default function KidsCareDetailView({ kidsCareId, kidsCares, user, onBack
           </>
         ) : (
           /* ======== NO APPLICATION YET ======== */
-          <>
-            <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-5 flex items-center justify-between">
-              <div>
-                <p className="font-extrabold text-[#0F6045] font-headline">사전 신청이 아직 없어요</p>
-                <p className="text-sm text-emerald-700/80 mt-0.5">지금 신청하고 안심하고 예배드리세요</p>
-              </div>
-              <span className="text-3xl">✨</span>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-5 flex items-center justify-between">
+            <div>
+              <p className="font-extrabold text-[#0F6045] font-headline">사전 신청이 아직 없어요</p>
+              <p className="text-sm text-emerald-700/80 mt-0.5">지금 신청하고 안심하고 예배드리세요</p>
             </div>
-            <button onClick={onNavigateToApply}
-              className="w-full py-5 bg-[#0F6045] text-white rounded-3xl font-extrabold text-lg shadow-xl shadow-[#0F6045]/25 active:scale-95 transition-all flex items-center justify-center gap-3">
+            <span className="text-3xl">✨</span>
+          </div>
+        )}
+
+        {/* Bottom spacer when fixed button is shown */}
+        {showFixedApplyButton && <div className="h-32" />}
+      </main>
+
+      {/* Fixed Apply Button - always visible above nav bar */}
+      {showFixedApplyButton && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 px-5 pb-8 pt-4 bg-gradient-to-t from-[#FAF9F6] via-[#FAF9F6]/95 to-transparent pointer-events-none">
+          <div className="max-w-md mx-auto pointer-events-auto">
+            <button
+              onClick={onNavigateToApply}
+              className="w-full py-5 bg-[#0F6045] text-white rounded-3xl font-extrabold text-lg shadow-2xl shadow-[#0F6045]/30 active:scale-95 transition-all flex items-center justify-center gap-3"
+            >
               <Baby size={22} />
               사전 신청하기
             </button>
-          </>
-        )}
-      </main>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
