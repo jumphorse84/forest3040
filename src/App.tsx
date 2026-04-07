@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -161,6 +161,7 @@ import SurveyView from './views/SurveyView';
 import PastoralStatsDashboardView from './views/PastoralStatsDashboardView';
 import KidsCareAddView from './views/KidsCareAddView';
 import KidsCareDetailView from './views/KidsCareDetailView';
+import KidsCareApplyView from './views/KidsCareApplyView';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('home'); 
@@ -828,6 +829,15 @@ export default function App() {
             forests={mergedForests}
           />
         )}
+        {subPage === 'kids_care_apply' && (
+          <KidsCareApplyView
+            kidsCareId={selectedKidsCareId}
+            kidsCares={kidsCares}
+            user={currentUser}
+            onBack={() => setSubPage('kids_care_detail')}
+            onShowToast={showToast}
+          />
+        )}
         {subPage === 'kids_care_detail' && (
           <KidsCareDetailView 
             kidsCareId={selectedKidsCareId}
@@ -835,6 +845,7 @@ export default function App() {
             user={currentUser}
             onBack={() => setSubPage(null)} 
             onShowToast={showToast}
+            onNavigateToApply={() => setSubPage('kids_care_apply')}
           />
         )}
         {!subPage && activeTab === 'calendar' && <CalendarView user={currentUser} schedules={schedules.length > 0 ? schedules : mockDb.schedules} onShowToast={showToast} />}

@@ -10,6 +10,7 @@ export default function KidsCareAddView({ onBack, onShowToast, forests }: any) {
     time: '오후 1:30 ~ 3:30',
     location: '비전센터 2층 (키즈룸)',
     target: '3세 ~ 미취학 아동',
+    teacher_name: '',
     content: '',
     assigned_forest_id: ''
   });
@@ -96,6 +97,14 @@ export default function KidsCareAddView({ onBack, onShowToast, forests }: any) {
                 <option key={f.forest_id} value={f.forest_id}>{f.name}</option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-on-surface-variant font-headline mb-2">담당 교사 이름</label>
+            <input type="text" value={formData.teacher_name} onChange={e => setFormData({ ...formData, teacher_name: e.target.value })}
+              className="w-full bg-surface-container-lowest border border-surface-container-low rounded-xl px-4 py-3 outline-none focus:border-primary transition-colors text-on-surface"
+              placeholder="예: 김믿음 선생님"
+            />
           </div>
 
           <div>

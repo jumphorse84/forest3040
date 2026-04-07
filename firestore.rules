@@ -168,5 +168,20 @@ service cloud.firestore {
       allow update: if isAuthenticated() && (isAdmin() || isLeader() || isPastor() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['registrations']));
       allow delete: if isAdmin() || isLeader() || isPastor();
     }
+
+    // Kids Applications rules
+    match /kids_applications/{appId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() || isLeader() || isPastor() ||
+        resource.data.parent_id == request.auth.uid
+      );
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        isAdmin() || isLeader() || isPastor() ||
+        resource.data.parent_id == request.auth.uid
+      );
+      allow delete: if isAdmin() || isLeader() || isPastor() ||
+        resource.data.parent_id == request.auth.uid;
+    }
   }
 }
