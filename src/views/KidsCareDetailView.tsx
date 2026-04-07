@@ -90,7 +90,7 @@ export default function KidsCareDetailView({ kidsCareId, kidsCares, user, onBack
   const showFixedApplyButton = !loadingApp && !myApplication;
 
   return (
-    <div className="bg-[#FAF9F6] min-h-screen pb-28 font-body">
+    <div className="fixed inset-0 bg-[#FAF9F6] overflow-y-auto z-40 font-body">
       <nav className="sticky top-0 z-50 bg-[#FAF9F6]/90 backdrop-blur-xl px-6 py-4 max-w-md mx-auto flex items-center gap-3">
         <button onClick={onBack} className="active:scale-95 transition-transform p-1">
           <ChevronLeft className="text-[#0F6045] w-6 h-6" />

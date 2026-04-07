@@ -40,7 +40,7 @@ export default function KidsCareAddView({ onBack, onShowToast, forests }: any) {
   };
 
   return (
-    <div className="bg-surface font-body selection:bg-primary/20 min-h-screen pb-32">
+    <div className="fixed inset-0 bg-surface font-body selection:bg-primary/20 overflow-y-auto z-40">
       <nav className="sticky top-0 w-full z-50 bg-[#FAF9F6]/80 backdrop-blur-xl flex justify-between items-center px-6 py-4 max-w-md mx-auto left-0 right-0">
         <div className="flex items-center gap-3 active:scale-95 duration-200 cursor-pointer" onClick={onBack}>
           <ChevronLeft className="text-primary-dim w-6 h-6" />
