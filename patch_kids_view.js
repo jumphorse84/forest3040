@@ -1,4 +1,8 @@
-import React from 'react';
+const fs = require('fs');
+
+const file = 'c:/Users/admin/Desktop/웹앱/포레스트/forest3040main/src/views/KidsView.tsx';
+
+let content = `import React from 'react';
 import { Baby, MapPin, Clock, Users, ChevronRight, History, TreePine, Plus } from 'lucide-react';
 
 const KidsView = ({ user, kidsCares = [], onNavigateToAdd, onNavigateToDetail, onShowToast }: any) => {
@@ -147,3 +151,7 @@ const KidsView = ({ user, kidsCares = [], onNavigateToAdd, onNavigateToDetail, o
 };
 
 export default KidsView;
+`;
+
+fs.writeFileSync(file, content);
+console.log('KidsView updated');

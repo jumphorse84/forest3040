@@ -159,6 +159,8 @@ import KidsView from './views/KidsView';
 import CalendarView from './views/CalendarView';
 import SurveyView from './views/SurveyView';
 import PastoralStatsDashboardView from './views/PastoralStatsDashboardView';
+import KidsCareAddView from './views/KidsCareAddView';
+import KidsCareDetailView from './views/KidsCareDetailView';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('home'); 
@@ -166,6 +168,7 @@ export default function App() {
   const [selectedForestId, setSelectedForestId] = useState<string | null>(null);
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [selectedWorshipId, setSelectedWorshipId] = useState<string | null>(null);
+  const [selectedKidsCareId, setSelectedKidsCareId] = useState<string | null>(null);
   const [selectedPastoralUser, setSelectedPastoralUser] = useState<any>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showRedirectLoginModal, setShowRedirectLoginModal] = useState(false);
@@ -183,6 +186,7 @@ export default function App() {
   const [schedules, setSchedules] = useState<any[]>([]);
   const [surveys, setSurveys] = useState<any[]>([]);
   const [worships, setWorships] = useState<any[]>([]);
+  const [kidsCares, setKidsCares] = useState<any[]>([]);
   const [fees, setFees] = useState<any[]>([]);
   const [pastoralRecords, setPastoralRecords] = useState<any[]>([]);
   const [weeklySettlements, setWeeklySettlements] = useState<any[]>([]);
@@ -309,6 +313,10 @@ export default function App() {
       setWorships(snapshot.docs.map(d => ({ ...d.data(), id: d.id })));
     }, (err) => handleFirestoreError(err, OperationType.GET, 'worships'));
 
+    const unsubKidsCares = onSnapshot(collection(firestoreDb, 'kids_cares'), (snapshot) => {
+      setKidsCares(snapshot.docs.map(d => ({ ...d.data(), id: d.id })));
+    }, (err) => handleFirestoreError(err, OperationType.GET, 'kids_cares'));
+
     // Fees listener - restricted by permission
     const isAdminUser = userData?.role === 'admin' || user?.uid === 'sfViap2UZ2alO1kzinMETlcLCxv1' || user?.email === 'seokgwan.ms01@gmail.com' || user?.email === 'jumphorse@nate.com';
     const canSeeAllFees = isAdminUser || userData?.permissions?.finance;
@@ -351,6 +359,7 @@ export default function App() {
       unsubSchedules();
       unsubSurveys();
       unsubWorships();
+      unsubKidsCares();
       unsubFees();
       unsubPastoral();
       unsubSettlements();
@@ -745,6 +754,7 @@ export default function App() {
         {!subPage && activeTab === 'home' && (
           <div className="pt-6 px-6 space-y-10">
             <HomeView 
+              kidsCares={kidsCares}
               user={currentUser} 
               schedules={schedules.length > 0 ? schedules : mockDb.schedules} 
               surveys={surveys}
@@ -811,8 +821,32 @@ export default function App() {
             onBack={() => setSubPage(null)} 
           />
         )}
+        {subPage === 'kids_care_add' && (
+          <KidsCareAddView 
+            onBack={() => setSubPage(null)} 
+            onShowToast={showToast} 
+            forests={mergedForests}
+          />
+        )}
+        {subPage === 'kids_care_detail' && (
+          <KidsCareDetailView 
+            kidsCareId={selectedKidsCareId}
+            kidsCares={kidsCares}
+            user={currentUser}
+            onBack={() => setSubPage(null)} 
+            onShowToast={showToast}
+          />
+        )}
         {!subPage && activeTab === 'calendar' && <CalendarView user={currentUser} schedules={schedules.length > 0 ? schedules : mockDb.schedules} onShowToast={showToast} />}
-        {!subPage && activeTab === 'kids' && <KidsView user={currentUser} onShowToast={showToast} />}
+        {!subPage && activeTab === 'kids' && (
+          <KidsView 
+            user={currentUser} 
+            kidsCares={kidsCares}
+            onNavigateToAdd={() => setSubPage('kids_care_add')}
+            onNavigateToDetail={(id: string) => { setSelectedKidsCareId(id); setSubPage('kids_care_detail'); }}
+            onShowToast={showToast} 
+          />
+        )}
       </main>
 
       {selectedPastoralUser && (

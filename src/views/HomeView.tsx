@@ -11,7 +11,7 @@ import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebas
 import { db as firestoreDb, auth, storage } from '../firebase';
 import { VISIT_CATEGORIES, MenuButton, ScheduleItem, MemberRow, OperationType, handleFirestoreError } from '../App';
 
-const HomeView = ({ user, schedules, surveys, attendance, onNavigateToMyForestBoard, onNavigate }: any) => {
+const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], onNavigateToMyForestBoard, onNavigate }: any) => {
 
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   
@@ -48,6 +48,16 @@ const HomeView = ({ user, schedules, surveys, attendance, onNavigateToMyForestBo
     return `D+${Math.abs(dDay)}`;
   };
 
+  const upcomingCareForMyForest = kidsCares?.find((c: any) => {
+    if (!c.date || !user?.forest_id || c.assigned_forest_id !== user.forest_id) return false;
+    const careDate = new Date(c.date);
+    const now = new Date();
+    now.setHours(0,0,0,0);
+    const diffTime = careDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 && diffDays <= 7; // within 7 days
+  });
+
   return (
     <>
       {/* Greeting Card */}
@@ -75,6 +85,27 @@ const HomeView = ({ user, schedules, surveys, attendance, onNavigateToMyForestBo
           />
         </div>
       </section>
+
+      {/* Kids Care Duty Notification */}
+      {upcomingCareForMyForest && (
+        <section className="bg-primary/10 border border-primary/20 p-5 rounded-2xl flex items-start gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center shrink-0">
+            <Baby size={20} className="text-on-primary" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-bold text-primary font-headline">이번 주 우리 숲 봉사 안내</h3>
+              <span className="text-xs font-bold text-primary px-2 py-0.5 bg-primary/20 rounded-full">
+                {calculateDDay(upcomingCareForMyForest.date)}
+              </span>
+            </div>
+            <p className="text-sm font-medium text-on-surface">이번 주 주일({upcomingCareForMyForest.date})은 소속하신 숲이 키즈돌봄 당번입니다. 잊지 말고 꼭 참석해주세요!</p>
+            <div className="mt-3 flex gap-2">
+              <button onClick={() => onNavigate('kids')} className="text-xs font-bold bg-primary text-on-primary px-3 py-1.5 rounded-lg active:scale-95 transition-transform">상세 보기</button>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Quick Menu Grid */}
       <section className="space-y-4">
