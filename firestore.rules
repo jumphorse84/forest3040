@@ -160,6 +160,13 @@ service cloud.firestore {
     match /weekly_columns/{columnId} {
       allow read, write: if isAuthenticated();
     }
+
+    // Kids Care rules
+    match /kids_cares/{careId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() || isLeader() || isPastor();
+      allow update: if isAuthenticated() && (isAdmin() || isLeader() || isPastor() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['registrations']));
+      allow delete: if isAdmin() || isLeader() || isPastor();
+    }
   }
 }
-
