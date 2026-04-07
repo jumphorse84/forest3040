@@ -1,5 +1,6 @@
 import React from 'react';
-import { Baby, MapPin, Clock, Users, ChevronRight, History, TreePine, Plus } from 'lucide-react';
+import { Baby, MapPin, Clock, Users, ChevronRight, History, TreePine, Plus, Heart, Sparkles } from 'lucide-react';
+import { FOREST_GROUPS } from '../App';
 
 const KidsView = ({ user, kidsCares = [], onNavigateToAdd, onNavigateToDetail, onShowToast }: any) => {
   // Get the most recent upcoming or ongoing care
@@ -52,54 +53,66 @@ const KidsView = ({ user, kidsCares = [], onNavigateToAdd, onNavigateToDetail, o
 
         {/* Info Card: Weekly Care Guide */}
         {activeCare ? (
-          <section className="bg-white rounded-xl p-8 shadow-[0_20px_40px_rgba(46,47,45,0.06)] cursor-pointer active:scale-[0.98] transition-transform" onClick={() => onNavigateToDetail(activeCare.id)}>
-            <div className="flex items-center justify-between mb-8">
-              <h3 className="text-xl font-bold text-on-surface font-headline">이번 주 돌봄 안내 ({activeCare.date})</h3>
-              <span className="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full text-xs font-bold font-headline">{activeCare.status || '진행 중'}</span>
+          <section className="bg-gradient-to-b from-[#fff6f3] to-white rounded-[2rem] p-8 shadow-[0_15px_40px_rgba(139,73,50,0.08)] border-4 border-white cursor-pointer hover:-translate-y-1 transition-transform relative overflow-hidden group" onClick={() => onNavigateToDetail(activeCare.id)}>
+            <div className="absolute -top-10 -right-10 w-40 h-40 bg-[#ffefeb] rounded-full blur-2xl group-hover:scale-110 transition-transform duration-500"></div>
+            <div className="absolute top-6 right-6 opacity-20 group-hover:opacity-100 transition-opacity duration-300">
+               <Sparkles className="text-[#ffab91]" size={32} />
             </div>
-            <div className="space-y-6">
-              <div className="flex items-start gap-5">
-                <div className="w-10 h-10 bg-[#8b4932]/10 rounded-full flex items-center justify-center shrink-0">
-                  <MapPin size={20} className="text-[#8b4932]" />
+            <div className="flex flex-col mb-8 relative z-10 pr-10">
+              <span className="text-xs font-extrabold text-[#fda485] mb-2 font-headline uppercase tracking-wider">{activeCare.date}</span>
+              <h3 className="text-2xl font-extrabold text-[#8b4932] font-headline leading-tight break-keep">{activeCare.title || '이번 주 키즈돌봄 안내'}</h3>
+            </div>
+            <div className="space-y-5 relative z-10">
+              <div className="flex items-center gap-4 bg-white/60 p-3 rounded-2xl">
+                <div className="w-12 h-12 bg-[#ffefeb] rounded-full flex items-center justify-center shrink-0 shadow-inner">
+                  <MapPin size={22} className="text-[#e27351]" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1 font-headline">장소</p>
-                  <p className="text-lg font-semibold text-on-surface font-headline">{activeCare.location}</p>
+                  <p className="text-[11px] font-bold text-[#b58876] uppercase tracking-widest mb-0.5 font-headline">장소</p>
+                  <p className="text-[15px] font-extrabold text-[#613b1c] font-headline">{activeCare.location}</p>
                 </div>
               </div>
-              <div className="flex items-start gap-5">
-                <div className="w-10 h-10 bg-[#8b4932]/10 rounded-full flex items-center justify-center shrink-0">
-                  <Clock size={20} className="text-[#8b4932]" />
+              <div className="flex items-center gap-4 bg-white/60 p-3 rounded-2xl">
+                <div className="w-12 h-12 bg-[#ffefeb] rounded-full flex items-center justify-center shrink-0 shadow-inner">
+                  <Clock size={22} className="text-[#e27351]" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1 font-headline">시간</p>
-                  <p className="text-lg font-semibold text-on-surface font-headline">{activeCare.time}</p>
+                  <p className="text-[11px] font-bold text-[#b58876] uppercase tracking-widest mb-0.5 font-headline">시간</p>
+                  <p className="text-[15px] font-extrabold text-[#613b1c] font-headline">{activeCare.time}</p>
                 </div>
               </div>
-              <div className="flex items-start gap-5">
-                <div className="w-10 h-10 bg-[#8b4932]/10 rounded-full flex items-center justify-center shrink-0">
-                  <Users size={20} className="text-[#8b4932]" />
+              <div className="flex items-center gap-4 bg-white/60 p-3 rounded-2xl">
+                <div className="w-12 h-12 bg-[#ffefeb] rounded-full flex items-center justify-center shrink-0 shadow-inner">
+                  <Baby size={22} className="text-[#e27351]" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1 font-headline">대상</p>
-                  <p className="text-lg font-semibold text-on-surface font-headline">{activeCare.target}</p>
+                  <p className="text-[11px] font-bold text-[#b58876] uppercase tracking-widest mb-0.5 font-headline">대상</p>
+                  <p className="text-[15px] font-extrabold text-[#613b1c] font-headline">{activeCare.target}</p>
                 </div>
               </div>
             </div>
-            <div className="mt-8 pt-8 border-t border-surface-container-low flex items-center justify-between">
+            <div className="mt-8 pt-6 border-t-2 border-dashed border-[#ffefeb] flex items-center justify-between relative z-10">
               {activeCare.assigned_forest_id && (
-                <div className="text-sm font-bold text-[#8b4932] bg-[#ffefeb] px-3 py-1.5 rounded-lg border border-[#fac097]">
-                  봉사 담당숲: {activeCare.assigned_forest_id}
+                <div className="flex items-center gap-2">
+                  <Heart size={16} className="text-[#ffab91] fill-[#ffab91]" />
+                  <span className="text-[13px] font-extrabold text-[#8b4932] font-headline">
+                    담당: {FOREST_GROUPS.find((f:any) => f.id === activeCare.assigned_forest_id)?.name || activeCare.assigned_forest_id}
+                  </span>
                 </div>
               )}
-              <div className="text-sm font-bold text-primary">
-                사전 신청: {Object.values(activeCare.registrations || {}).reduce((a:any, b:any) => a + b, 0)}명
+              <div className="bg-primary/10 px-4 py-2 rounded-full border border-primary/20">
+                <span className="text-[13px] font-extrabold text-primary font-headline">
+                  예약: {Object.values(activeCare.registrations || {}).reduce((a:any, b:any) => a + b, 0)}명
+                </span>
               </div>
             </div>
           </section>
         ) : (
-          <section className="bg-white rounded-xl p-8 shadow-[0_20px_40px_rgba(46,47,45,0.06)] text-center text-on-surface-variant">
-            이번 주 돌봄 프로그램이 아직 등록되지 않았습니다.
+          <section className="bg-white rounded-3xl p-10 shadow-[0_20px_40px_rgba(46,47,45,0.06)] flex flex-col items-center justify-center text-center">
+            <div className="w-20 h-20 bg-[#ffefeb] rounded-full flex items-center justify-center mb-5">
+              <Baby size={40} className="text-[#ffab91]" />
+            </div>
+            <p className="text-on-surface-variant font-bold text-lg">이번 주 돌봄 프로그램이<br/>아직 등록되지 않았습니다.</p>
           </section>
         )}
 
@@ -114,7 +127,7 @@ const KidsView = ({ user, kidsCares = [], onNavigateToAdd, onNavigateToDetail, o
               {myApplications.map((app: any) => (
                 <div key={app.id} onClick={() => onNavigateToDetail(app.id)} className="bg-white rounded-xl p-4 shadow-[0_5px_15px_rgba(0,0,0,0.05)] border border-surface-container-low flex justify-between items-center cursor-pointer active:scale-95 transition-transform">
                   <div>
-                    <h4 className="font-bold text-on-surface font-headline">{app.date} 키즈돌봄</h4>
+                    <h4 className="font-bold text-on-surface font-headline text-[15px]">{app.title || `${app.date} 키즈돌봄`}</h4>
                     <p className="text-xs text-on-surface-variant mt-1">{app.location} | 신청인원: {app.registrations[user?.uid]}명</p>
                   </div>
                   <ChevronRight size={18} className="text-surface-container-high" />

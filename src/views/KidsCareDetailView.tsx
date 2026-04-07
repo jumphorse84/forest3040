@@ -85,8 +85,10 @@ export default function KidsCareDetailView({ kidsCareId, kidsCares, user, onBack
             <span className="inline-block bg-white/40 backdrop-blur-sm px-3 py-1 rounded-full text-[11px] font-bold text-[#8b4932] mb-3">
               {careData.date} ({careData.status})
             </span>
-            <h1 className="text-2xl font-extrabold text-on-surface font-headline leading-tight">이번 주 키즈돌봄<br/>사전 신청</h1>
-            <p className="text-on-surface-variant font-medium mt-2 text-sm">믿고 맡길 수 있는 안전한 시간</p>
+            <h1 className="text-2xl font-extrabold text-on-surface font-headline leading-tight break-keep">
+              {careData.title ? careData.title : <>이번 주 키즈돌봄<br/>사전 신청</>}
+            </h1>
+            <p className="text-on-surface-variant font-medium mt-2 text-sm">{careData.title ? '사전 신청하기' : '믿고 맡길 수 있는 안전한 시간'}</p>
           </div>
         </section>
 
@@ -146,7 +148,7 @@ export default function KidsCareDetailView({ kidsCareId, kidsCares, user, onBack
                   <p className="text-sm text-primary-dim mt-1">{myApplyCount}명의 아이가 신청되어 있습니다.</p>
                 </div>
               </div>
-              <button onClick={handleCancelApply} disabled={isSubmitting} className="w-full py-4 bg-surface-container-low text-on-surface rounded-2xl font-bold active:scale-95 transition-all text-sm">
+              <button onClick={handleCancelApply} disabled={isApplying} className="w-full py-4 bg-surface-container-low text-on-surface rounded-2xl font-bold active:scale-95 transition-all text-sm">
                 신청 취소하기
               </button>
             </div>
@@ -185,10 +187,10 @@ export default function KidsCareDetailView({ kidsCareId, kidsCares, user, onBack
               </div>
 
               <button 
-                onClick={handleApply} disabled={isSubmitting}
+                onClick={handleApply} disabled={isApplying}
                 className="w-full py-4 bg-primary text-on-primary rounded-xl font-bold shadow-md shadow-primary/20 active:scale-95 transition-all text-lg flex justify-center items-center gap-2"
               >
-                {isSubmitting ? '처리 중...' : `${kidsCount}명 신청하기`}
+                {isApplying ? '처리 중...' : `${kidsCount}명 신청하기`}
               </button>
             </div>
           </div>

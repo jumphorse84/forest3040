@@ -5,6 +5,7 @@ import { db } from '../firebase';
 
 export default function KidsCareAddView({ onBack, onShowToast, forests }: any) {
   const [formData, setFormData] = useState({
+    title: '',
     date: new Date().toISOString().split('T')[0],
     time: '오후 1:30 ~ 3:30',
     location: '비전센터 2층 (키즈룸)',
@@ -15,8 +16,8 @@ export default function KidsCareAddView({ onBack, onShowToast, forests }: any) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    if (!formData.date || !formData.content.trim() || !formData.assigned_forest_id) {
-      onShowToast('날짜, 프로그램 내용, 담당숲을 모두 입력해주세요.');
+    if (!formData.title.trim() || !formData.date || !formData.content.trim() || !formData.assigned_forest_id) {
+      onShowToast('제목, 날짜, 프로그램 내용, 담당숲을 모두 입력해주세요.');
       return;
     }
 
@@ -48,6 +49,14 @@ export default function KidsCareAddView({ onBack, onShowToast, forests }: any) {
 
       <main className="max-w-md mx-auto px-6 py-6 space-y-6">
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-surface-container-low space-y-5">
+          <div>
+            <label className="block text-sm font-bold text-on-surface-variant font-headline mb-2">프로그램 제목</label>
+            <input type="text" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })}
+              className="w-full bg-surface-container-lowest border border-surface-container-low rounded-xl px-4 py-3 outline-none focus:border-primary transition-colors text-on-surface"
+              placeholder="예: 재미있는 스피드 스택스!"
+            />
+          </div>
+
           <div>
             <label className="block text-sm font-bold text-on-surface-variant font-headline mb-2">날짜</label>
             <input type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })}
