@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Baby, MapPin, Clock, Users, Megaphone, CheckCircle2, X, ChevronDown, ChevronUp, Phone, AlertTriangle, User } from 'lucide-react';
-import { doc, updateDoc, collection, onSnapshot, query, where } from 'firebase/firestore';
+import { doc, updateDoc, collection, onSnapshot, query, where, deleteField } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const STATUS_STEPS = [
@@ -249,6 +249,10 @@ export default function KidsCareDetailView({ kidsCareId, kidsCares, user, onBack
                       setIsCancelling(true);
                       try {
                         await updateDoc(doc(db, 'kids_applications', myApplication.id), { cancelled: true });
+                        // Remove the user's registration count for this kids_care event
+                        await updateDoc(doc(db, 'kids_cares', kidsCareId), {
+                          [`registrations.${user.uid}`]: deleteField()
+                        });
                         onShowToast('신청이 취소되었습니다.');
                         setShowCancelConfirm(false);
                       } catch { onShowToast('취소 중 오류가 발생했습니다.'); }

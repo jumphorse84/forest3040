@@ -74,6 +74,10 @@ export default function KidsCareApplyView({ kidsCareId, kidsCares, user, onBack,
         pickup_person: pickupPerson, special_notes: specialNotes,
         createdAt: Timestamp.now(),
       });
+      // Update the registrations count in the kids_cares document
+      await updateDoc(doc(db, 'kids_cares', kidsCareId), {
+        [`registrations.${user.uid}`]: children.length
+      });
       setShowSuccess(true);
       setTimeout(() => onBack(), 3500);
     } catch (e) { console.error(e); onShowToast('신청 중 오류가 발생했습니다.'); setIsSubmitting(false); }
