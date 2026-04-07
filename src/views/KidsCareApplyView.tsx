@@ -259,13 +259,13 @@ export default function KidsCareApplyView({ kidsCareId, kidsCares, user, onBack,
           </div>
         </section>
 
-        {/* Bottom padding to avoid being covered by fixed button */}
-        <div className="h-40" />
+        {/* Bottom padding - must be taller than fixed button + nav bar */}
+        <div className="h-56" />
       </main>
 
-      {/* Fixed Submit Button - always visible above nav bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 px-5 pb-8 pt-4 bg-gradient-to-t from-[#FAF9F6] via-[#FAF9F6]/95 to-transparent">
-        <div className="max-w-md mx-auto space-y-2">
+      {/* Fixed Submit Button - pointer-events-none on gradient so scroll works through it */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 px-5 pb-8 pt-4 bg-gradient-to-t from-[#FAF9F6] via-[#FAF9F6]/95 to-transparent pointer-events-none">
+        <div className="max-w-md mx-auto space-y-2 pointer-events-auto">
           {selectedNames.length === 0 && (
             <p className="text-center text-xs text-on-surface-variant font-medium bg-white/80 py-2 px-4 rounded-full border border-surface-container-low">
               위에서 자녀를 먼저 선택해주세요
