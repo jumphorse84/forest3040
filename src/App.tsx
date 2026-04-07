@@ -853,6 +853,7 @@ export default function App() {
           <KidsView 
             user={currentUser} 
             kidsCares={kidsCares}
+            forests={mergedForests}
             onNavigateToAdd={() => setSubPage('kids_care_add')}
             onNavigateToDetail={(id: string) => { setSelectedKidsCareId(id); setSubPage('kids_care_detail'); }}
             onShowToast={showToast} 

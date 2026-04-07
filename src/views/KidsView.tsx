@@ -1,8 +1,7 @@
 import React from 'react';
 import { Baby, MapPin, Clock, Users, ChevronRight, History, TreePine, Plus, Heart, Sparkles } from 'lucide-react';
-import { FOREST_GROUPS } from '../App';
 
-const KidsView = ({ user, kidsCares = [], onNavigateToAdd, onNavigateToDetail, onShowToast }: any) => {
+const KidsView = ({ user, kidsCares = [], forests = [], onNavigateToAdd, onNavigateToDetail, onShowToast }: any) => {
   // Get the most recent upcoming or ongoing care
   // We sort by date descending
   const recentCares = [...kidsCares].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -96,7 +95,7 @@ const KidsView = ({ user, kidsCares = [], onNavigateToAdd, onNavigateToDetail, o
                 <div className="flex items-center gap-2">
                   <Heart size={16} className="text-[#ffab91] fill-[#ffab91]" />
                   <span className="text-[13px] font-extrabold text-[#8b4932] font-headline">
-                    담당: {FOREST_GROUPS.find((f:any) => f.id === activeCare.assigned_forest_id)?.name || activeCare.assigned_forest_id}
+                    담당: {forests.find((f:any) => f.forest_id === activeCare.assigned_forest_id)?.name || activeCare.assigned_forest_id}
                   </span>
                 </div>
               )}

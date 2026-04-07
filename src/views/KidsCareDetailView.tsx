@@ -23,22 +23,56 @@ export default function KidsCareDetailView({ kidsCareId, kidsCares, user, onBack
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
+  const [queryError, setQueryError] = useState<string | null>(null);
+
   const careData = kidsCares.find((c: any) => c.id === kidsCareId);
 
   useEffect(() => {
     if (!user?.uid || !kidsCareId) { setLoadingApp(false); return; }
+    // Query by kids_care_id only to avoid composite index requirement
+    // Then filter by parent_id on client side
     const q = query(
       collection(db, 'kids_applications'),
-      where('kids_care_id', '==', kidsCareId),
-      where('parent_id', '==', user.uid)
+      where('kids_care_id', '==', kidsCareId)
     );
-    const unsub = onSnapshot(q, snap => {
-      if (!snap.empty) setMyApplication({ ...snap.docs[0].data(), id: snap.docs[0].id });
-      else setMyApplication(null);
-      setLoadingApp(false);
-    });
+    const unsub = onSnapshot(q,
+      snap => {
+        const myApp = snap.docs
+          .map(d => ({ ...d.data(), id: d.id }))
+          .find((app: any) => app.parent_id === user.uid && !app.cancelled);
+        setMyApplication(myApp || null);
+        setLoadingApp(false);
+        setQueryError(null);
+      },
+      err => {
+        console.error('kids_applications query error:', err);
+        setQueryError(err.message);
+        setLoadingApp(false);
+      }
+    );
     return () => unsub();
   }, [kidsCareId, user?.uid]);
+
+  // If kidsCares is still loading or kidsCareId is missing
+  if (!kidsCareId) {
+    return (
+      <div className="flex flex-col items-center justify-center p-6 text-center pt-24 min-h-screen">
+        <Baby size={48} className="text-[#ffab91] mb-4" />
+        <p className="text-on-surface-variant font-bold">돌봄 ID가 없습니다.</p>
+        <button onClick={onBack} className="mt-4 text-[#0F6045] font-bold underline">뒤로가기</button>
+      </div>
+    );
+  }
+
+  if (!careData && kidsCares.length === 0) {
+    // Still loading
+    return (
+      <div className="flex flex-col items-center justify-center p-6 text-center pt-24 min-h-screen">
+        <div className="w-12 h-12 border-4 border-[#0F6045] border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-on-surface-variant">불러오는 중...</p>
+      </div>
+    );
+  }
 
   if (!careData) {
     return (
