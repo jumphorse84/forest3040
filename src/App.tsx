@@ -162,6 +162,7 @@ import PastoralStatsDashboardView from './views/PastoralStatsDashboardView';
 import KidsCareAddView from './views/KidsCareAddView';
 import KidsCareDetailView from './views/KidsCareDetailView';
 import KidsCareApplyView from './views/KidsCareApplyView';
+import KidsCareAdminView from './views/KidsCareAdminView';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('home'); 
@@ -848,6 +849,15 @@ export default function App() {
             onNavigateToApply={() => setSubPage('kids_care_apply')}
           />
         )}
+        {subPage === 'kids_care_admin' && (
+          <KidsCareAdminView 
+            kidsCareId={selectedKidsCareId}
+            kidsCares={kidsCares}
+            user={currentUser}
+            onBack={() => setSubPage(null)} 
+            onShowToast={showToast}
+          />
+        )}
         {!subPage && activeTab === 'calendar' && <CalendarView user={currentUser} schedules={schedules.length > 0 ? schedules : mockDb.schedules} onShowToast={showToast} />}
         {!subPage && activeTab === 'kids' && (
           <KidsView 
@@ -856,6 +866,7 @@ export default function App() {
             forests={mergedForests}
             onNavigateToAdd={() => setSubPage('kids_care_add')}
             onNavigateToDetail={(id: string) => { setSelectedKidsCareId(id); setSubPage('kids_care_detail'); }}
+            onNavigateToAdmin={(id: string) => { setSelectedKidsCareId(id); setSubPage('kids_care_admin'); }}
             onShowToast={showToast} 
           />
         )}

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Baby, MapPin, Clock, Users, ChevronRight, History, TreePine, Plus, Heart, Sparkles } from 'lucide-react';
 
-const KidsView = ({ user, kidsCares = [], forests = [], onNavigateToAdd, onNavigateToDetail, onShowToast }: any) => {
+const KidsView = ({ user, kidsCares = [], forests = [], onNavigateToAdd, onNavigateToDetail, onNavigateToAdmin, onShowToast }: any) => {
   // Get the most recent upcoming or ongoing care
   // We sort by date descending
   const recentCares = [...kidsCares].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -90,20 +90,31 @@ const KidsView = ({ user, kidsCares = [], forests = [], onNavigateToAdd, onNavig
                 </div>
               </div>
             </div>
-            <div className="mt-8 pt-6 border-t-2 border-dashed border-[#ffefeb] flex items-center justify-between relative z-10">
-              {activeCare.assigned_forest_id && (
-                <div className="flex items-center gap-2">
-                  <Heart size={16} className="text-[#ffab91] fill-[#ffab91]" />
-                  <span className="text-[13px] font-extrabold text-[#8b4932] font-headline">
-                    담당: {forests.find((f:any) => f.forest_id === activeCare.assigned_forest_id)?.name || activeCare.assigned_forest_id}
+            <div className="mt-8 pt-6 border-t-2 border-dashed border-[#ffefeb] flex flex-col gap-4 relative z-10">
+              <div className="flex items-center justify-between">
+                {activeCare.assigned_forest_id && (
+                  <div className="flex items-center gap-2">
+                    <Heart size={16} className="text-[#ffab91] fill-[#ffab91]" />
+                    <span className="text-[13px] font-extrabold text-[#8b4932] font-headline">
+                      담당: {forests.find((f:any) => f.forest_id === activeCare.assigned_forest_id)?.name || activeCare.assigned_forest_id}
+                    </span>
+                  </div>
+                )}
+                <div className="bg-primary/10 px-4 py-2 rounded-full border border-primary/20 flex gap-2 items-center">
+                  <span className="text-[13px] font-extrabold text-primary font-headline">
+                    예약: {Object.values(activeCare.registrations || {}).reduce((a:any, b:any) => a + b, 0)}명
                   </span>
                 </div>
-              )}
-              <div className="bg-primary/10 px-4 py-2 rounded-full border border-primary/20">
-                <span className="text-[13px] font-extrabold text-primary font-headline">
-                  예약: {Object.values(activeCare.registrations || {}).reduce((a:any, b:any) => a + b, 0)}명
-                </span>
               </div>
+              {isAdminOrLeader && (
+                <button 
+                  onClick={() => onNavigateToAdmin(activeCare.id)}
+                  className="w-full py-3 bg-[#0F6045] text-white rounded-xl font-bold flex flex-row items-center justify-center gap-2 relative shadow-md shadow-[#0F6045]/20 active:scale-95 transition-transform"
+                >
+                  <Users size={18} />
+                  <span>운영진 명단 관리</span>
+                </button>
+              )}
             </div>
           </section>
         ) : (
