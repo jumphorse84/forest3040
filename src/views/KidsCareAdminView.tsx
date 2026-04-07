@@ -67,18 +67,18 @@ export default function KidsCareAdminView({ kidsCareId, kidsCares, user, onBack,
   const filteredChildren = useMemo(() => {
     return allChildren.filter(c => {
       const matchSearch = c.name.includes(searchQuery) || (c.parent_name && c.parent_name.includes(searchQuery));
-      const matchStatus = filterStatus === 'all' || c.status === filterStatus;
-      return matchSearch && matchStatus;
+      const childStatus = c.status || 'pending';
+      const matchStatus = filterStatus === 'all' || childStatus === filterStatus;
+      return matchStatus && matchSearch;
     }).sort((a, b) => a.name.localeCompare(b.name));
   }, [allChildren, searchQuery, filterStatus]);
 
   const counts = useMemo(() => {
     const defaultCounts = { total: allChildren.length, pending: 0, checked_in: 0, active: 0, checked_out: 0 };
     allChildren.forEach(c => {
-      if (c.status in defaultCounts) {
-        (defaultCounts as any)[c.status]++;
-      } else {
-        defaultCounts.pending++;
+      const currentStatus = c.status || 'pending';
+      if (currentStatus in defaultCounts) {
+        (defaultCounts as any)[currentStatus]++;
       }
     });
     return defaultCounts;
