@@ -99,7 +99,7 @@ export default function KidsCareApplyView({ kidsCareId, kidsCares, user, onBack,
   }
 
   return (
-    <div className="bg-[#FAF9F6] min-h-screen pb-36 font-body">
+    <div className="bg-[#FAF9F6] min-h-screen font-body">
       <nav className="sticky top-0 z-50 bg-[#FAF9F6]/90 backdrop-blur-xl px-6 py-4 max-w-md mx-auto flex items-center gap-3">
         <button onClick={onBack} className="active:scale-95 transition-transform p-1">
           <ChevronLeft className="text-[#0F6045] w-6 h-6" />
@@ -259,12 +259,37 @@ export default function KidsCareApplyView({ kidsCareId, kidsCares, user, onBack,
           </div>
         </section>
 
-        <button onClick={handleSubmit} disabled={isSubmitting || selectedNames.length === 0}
-          className="w-full py-5 bg-[#0F6045] text-white rounded-3xl font-extrabold text-lg shadow-xl shadow-[#0F6045]/25 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3">
-          <Heart size={22} fill="white" />
-          {isSubmitting ? '신청 중...' : selectedNames.length > 0 ? `${selectedNames.join(', ')} 신청 완료` : '자녀를 선택해주세요'}
-        </button>
+        {/* Bottom padding to avoid being covered by fixed button */}
+        <div className="h-40" />
       </main>
+
+      {/* Fixed Submit Button - always visible above nav bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 px-5 pb-8 pt-4 bg-gradient-to-t from-[#FAF9F6] via-[#FAF9F6]/95 to-transparent">
+        <div className="max-w-md mx-auto space-y-2">
+          {selectedNames.length === 0 && (
+            <p className="text-center text-xs text-on-surface-variant font-medium bg-white/80 py-2 px-4 rounded-full border border-surface-container-low">
+              위에서 자녀를 먼저 선택해주세요
+            </p>
+          )}
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting || selectedNames.length === 0}
+            className={`w-full py-5 rounded-3xl font-extrabold text-[17px] shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-3 ${
+              selectedNames.length > 0
+                ? 'bg-[#0F6045] text-white shadow-[#0F6045]/30'
+                : 'bg-surface-container-high text-on-surface-variant cursor-not-allowed opacity-60'
+            }`}
+          >
+            <Heart size={22} fill={selectedNames.length > 0 ? 'white' : 'none'} />
+            {isSubmitting
+              ? '신청 중...'
+              : selectedNames.length > 0
+              ? `${selectedNames.join(', ')} 사전 신청 완료하기`
+              : '자녀를 선택해주세요'
+            }
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
