@@ -72,6 +72,37 @@ const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], onNavi
     return BIBLE_VERSES[dayOfYear % BIBLE_VERSES.length];
   }, []);
 
+  // Team fruit: sum of all registrations across all kids_care events assigned to user's forest
+  const teamFruitCount = useMemo(() => {
+    if (!user?.forest_id || !kidsCares) return 0;
+    return kidsCares
+      .filter((c: any) => c.assigned_forest_id === user.forest_id)
+      .reduce((sum: number, c: any) => {
+        const regs = Object.values(c.registrations || {}) as number[];
+        return sum + regs.reduce((s: number, v: number) => s + v, 0);
+      }, 0);
+  }, [kidsCares, user?.forest_id]);
+
+  // Personal stamp: count of distinct Sundays user attended this month
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const monthLabel = `${currentMonth + 1}월`;
+  const stampCount = useMemo(() => {
+    if (!attendance || !user?.uid) return 0;
+    const sundays = new Set<string>();
+    attendance
+      .filter((a: any) => a.uid === user.uid)
+      .forEach((a: any) => {
+        const d = new Date(a.date || a.timestamp?.toDate?.() || '');
+        if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+          sundays.add(a.date || d.toISOString().split('T')[0]);
+        }
+      });
+    return sundays.size;
+  }, [attendance, user?.uid, currentMonth, currentYear]);
+
+  const STAMP_TARGET = 10;
+
   const getDynamicGreeting = () => {
     const now = new Date();
     const actDay = now.getDay();
@@ -104,25 +135,22 @@ const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], onNavi
             </p>
           </div>
           
-          {/* Bible Verse Area No Box, Elegant typography */}
-          <div className="mb-8">
-            <p className="text-[14px] font-medium leading-relaxed text-white/95 break-keep opacity-90">
-              "{todaysVerse.split(' (')[0]}"
-            </p>
-            <p className="text-[11px] font-bold text-white/60 mt-2 tracking-wide uppercase">
-              {todaysVerse.split(' (')[1] ? `(${todaysVerse.split(' (')[1]}` : ''}
+          {/* Bible Verse Area - elegant, no box, no quotes */}
+          <div className="mb-8 border-l-2 border-white/30 pl-4">
+            <p className="text-[14px] font-medium leading-relaxed text-white/90 break-keep">
+              {todaysVerse}
             </p>
           </div>
 
           {/* Gamification / Community Tags Side by Side */}
           <div className="grid grid-cols-2 gap-3 mt-auto">
             <div className="flex flex-col gap-1 bg-white/10 backdrop-blur-md p-3 rounded-2xl active:scale-[0.98] transition-transform cursor-pointer border border-white/5">
-              <span className="text-[11px] font-bold text-white/60">베베숲 열매 누적 ⭐</span>
-              <span className="text-[15px] font-extrabold text-white">154개</span>
+              <span className="text-[11px] font-bold text-white/60">우리 숨 누적 열매 ⭐</span>
+              <span className="text-[15px] font-extrabold text-white">{teamFruitCount}개</span>
             </div>
             <div className="flex flex-col gap-1 bg-white/10 backdrop-blur-md p-3 rounded-2xl active:scale-[0.98] transition-transform cursor-pointer border border-white/5">
-              <span className="text-[11px] font-bold text-white/60">4월 출석 스탬프 🗺️</span>
-              <span className="text-[15px] font-extrabold text-[#d1fae5]">3 / 10 획득</span>
+              <span className="text-[11px] font-bold text-white/60">{monthLabel} 출석 스탬프 🗺️</span>
+              <span className="text-[15px] font-extrabold text-[#d1fae5]">{stampCount} / {STAMP_TARGET} 획득</span>
             </div>
           </div>
         </div>
