@@ -72,35 +72,61 @@ const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], onNavi
     return BIBLE_VERSES[dayOfYear % BIBLE_VERSES.length];
   }, []);
 
+  const getDynamicGreeting = () => {
+    const now = new Date();
+    const actDay = now.getDay();
+    const hours = now.getHours();
+    
+    if (actDay === 0) return '복된 주일입니다 💒 예배를 통해 큰 기쁨 누리시길 기도해요!';
+    if (actDay === 1 && hours < 12) return '월요병 조심! 새로운 한 주, 말씀으로 넉넉히 이겨내요 💪';
+    if (actDay === 5 && hours >= 12) return '한 주간 수고 많으셨습니다! 은혜로운 주말을 기대해요 🌿';
+    
+    if (hours >= 6 && hours < 12) return '상쾌한 아침입니다, 오늘도 주님과 동행하는 하루 되세요 ☀️';
+    if (hours >= 12 && hours < 18) return '나른한 오후, 따뜻한 말씀 한 구절로 쉬어가세요 ☕';
+    if (hours >= 18 || hours < 6) return '오늘 하루도 정말 수고 많으셨습니다. 평안한 밤 되세요 🌙';
+    
+    return '오늘 하루도 주님 안에서 평안하세요 🌿';
+  };
+
   return (
     <>
       {/* Greeting Card - Spiritual & Community Dashboard */}
-      <section className="relative overflow-hidden squircle p-8 bg-gradient-to-br from-[#0F6045] to-[#1a7858] text-white shadow-lg shadow-[#0F6045]/20 group">
+      <section className="relative overflow-hidden squircle p-8 bg-gradient-to-br from-[#0F6045] to-[#1a7858] text-white shadow-[0_15px_40px_rgba(15,96,69,0.2)] group">
         <div className="absolute top-0 right-0 -mr-8 -mt-8 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
-        <div className="relative z-10">
-          <p className="font-headline text-[15px] font-semibold opacity-90 mb-4">{user.name} 님, 오늘 하루도 주님 안에서 평안하세요.</p>
+        <div className="relative z-10 flex flex-col h-full justify-between">
           
-          {/* Bible Verse Area */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 mb-6 relative border border-white/10">
-            <Quote className="absolute top-3 left-3 text-white/20 w-8 h-8 -scale-x-100" />
-            <p className="text-[13px] font-medium leading-relaxed pt-2 pl-6 pr-2 text-white/95">
-              {todaysVerse}
+          <div className="mb-6">
+            <h2 className="text-[22px] font-extrabold font-headline mb-1 tracking-tight">
+              {user.name} <span className="opacity-80 text-lg font-medium">님,</span>
+            </h2>
+            <p className="text-[13px] font-medium opacity-90 leading-tight">
+              {getDynamicGreeting()}
+            </p>
+          </div>
+          
+          {/* Bible Verse Area No Box, Elegant typography */}
+          <div className="mb-8">
+            <p className="text-[14px] font-medium leading-relaxed text-white/95 break-keep opacity-90">
+              "{todaysVerse.split(' (')[0]}"
+            </p>
+            <p className="text-[11px] font-bold text-white/60 mt-2 tracking-wide uppercase">
+              {todaysVerse.split(' (')[1] ? `(${todaysVerse.split(' (')[1]}` : ''}
             </p>
           </div>
 
-          {/* Gamification / Community Tags */}
-          <div className="flex flex-col gap-2.5">
-            <div className="flex items-center gap-2.5 bg-white/20 backdrop-blur-md py-2.5 px-4 rounded-xl w-full active:scale-[0.98] transition-transform cursor-pointer">
-              <span className="text-[13px]">🌟</span>
-              <span className="text-[13px] font-extrabold uppercase tracking-wider text-white">베베숲 누적 열매 : 154개</span>
+          {/* Gamification / Community Tags Side by Side */}
+          <div className="grid grid-cols-2 gap-3 mt-auto">
+            <div className="flex flex-col gap-1 bg-white/10 backdrop-blur-md p-3 rounded-2xl active:scale-[0.98] transition-transform cursor-pointer border border-white/5">
+              <span className="text-[11px] font-bold text-white/60">베베숲 열매 누적 ⭐</span>
+              <span className="text-[15px] font-extrabold text-white">154개</span>
             </div>
-            <div className="flex items-center gap-2.5 bg-white/20 backdrop-blur-md py-2.5 px-4 rounded-xl w-full active:scale-[0.98] transition-transform cursor-pointer">
-              <span className="text-[13px]">🗺️</span>
-              <span className="text-[13px] font-extrabold uppercase tracking-wider text-[#d1fae5]">4월 동행 스탬프 : 3 / 10 획득</span>
+            <div className="flex flex-col gap-1 bg-white/10 backdrop-blur-md p-3 rounded-2xl active:scale-[0.98] transition-transform cursor-pointer border border-white/5">
+              <span className="text-[11px] font-bold text-white/60">4월 출석 스탬프 🗺️</span>
+              <span className="text-[15px] font-extrabold text-[#d1fae5]">3 / 10 획득</span>
             </div>
           </div>
         </div>
-        <div className="absolute -bottom-6 -right-6 w-32 h-32 opacity-[0.08]">
+        <div className="absolute -bottom-10 -right-10 w-40 h-40 opacity-[0.06] pointer-events-none">
           <BookOpen className="w-full h-full text-white" />
         </div>
       </section>
