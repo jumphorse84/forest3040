@@ -763,6 +763,7 @@ export default function App() {
               attendance={attendance}
               onNavigateToMyForestBoard={handleNavigateToMyForestBoard}
               onNavigate={(page: string) => setSubPage(page)}
+              onNavigateToKidsDetail={(id: string) => { setSelectedKidsCareId(id); setSubPage('kids_care_detail'); }}
             />
           </div>
         )}

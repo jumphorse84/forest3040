@@ -11,7 +11,7 @@ import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebas
 import { db as firestoreDb, auth, storage } from '../firebase';
 import { VISIT_CATEGORIES, MenuButton, ScheduleItem, MemberRow, OperationType, handleFirestoreError } from '../App';
 
-const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], onNavigateToMyForestBoard, onNavigate }: any) => {
+const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], onNavigateToMyForestBoard, onNavigate, onNavigateToKidsDetail }: any) => {
 
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   
@@ -101,7 +101,12 @@ const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], onNavi
             </div>
             <p className="text-sm font-medium text-on-surface">이번 주 주일({upcomingCareForMyForest.date})은 소속하신 숲이 키즈돌봄 당번입니다. 잊지 말고 꼭 참석해주세요!</p>
             <div className="mt-3 flex gap-2">
-              <button onClick={() => onNavigate('kids')} className="text-xs font-bold bg-primary text-on-primary px-3 py-1.5 rounded-lg active:scale-95 transition-transform">상세 보기</button>
+              <button 
+                onClick={() => onNavigateToKidsDetail ? onNavigateToKidsDetail(upcomingCareForMyForest.id) : onNavigate('kids')} 
+                className="text-xs font-bold bg-primary text-on-primary px-3 py-1.5 rounded-lg active:scale-95 transition-transform"
+              >
+                상세 보기
+              </button>
             </div>
           </div>
         </section>
