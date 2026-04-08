@@ -697,6 +697,7 @@ const ForestCommunityView = ({ onBack, user, userData, onShowToast }: { onBack?:
   const [forestStories, setForestStories] = useState<Record<string, Story[]>>({});
   const [allChats, setAllChats] = useState<Record<string, ChatMsg[]>>({});
   const [weeklyColumns, setWeeklyColumns] = useState<Record<number, ColumnData>>({});
+  const [selectedColumnData, setSelectedColumnData] = useState<ColumnData | null>(null);
 
   const activeForest = FORESTS.find(f => f.id === activeForestId);
   const weekInfo = useMemo(() => getCurrentWeekInfo(), []);
@@ -948,8 +949,67 @@ const ForestCommunityView = ({ onBack, user, userData, onShowToast }: { onBack?:
         {/* 이번 주 칼럼 */}
         <div>
           <h3 className="text-sm font-bold text-slate-700 mb-3 px-1">이번 주 숲 이야기 🌿</h3>
-          <WeeklyColumnCard weekInfo={weekInfo} columnData={weeklyColumns[weekInfo.weekNum]}/>
+          <WeeklyColumnCard
+            weekInfo={weekInfo}
+            columnData={weeklyColumns[weekInfo.weekNum]}
+            onClick={() => weeklyColumns[weekInfo.weekNum] && setSelectedColumnData(weeklyColumns[weekInfo.weekNum])}
+          />
         </div>
+
+        {/* Column Read Modal */}
+        {selectedColumnData && (
+          <div className="fixed inset-0 z-[300] flex items-end" onClick={() => setSelectedColumnData(null)}>
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+            <div
+              className="relative w-full max-h-[85vh] bg-white rounded-t-[2rem] overflow-y-auto animate-in slide-in-from-bottom-4 duration-300"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Handle bar */}
+              <div className="flex justify-center pt-4 pb-2">
+                <div className="w-10 h-1 bg-slate-200 rounded-full" />
+              </div>
+
+              {/* Header */}
+              <div className="px-6 pt-2 pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="bg-[#8C5E45] text-white text-[10px] font-bold px-3 py-1 rounded-full">이번 주 숲 이야기</span>
+                </div>
+                <h2 className="text-[20px] font-extrabold text-slate-800 leading-snug break-keep">{selectedColumnData.title}</h2>
+                <div className="flex items-center gap-2 mt-3">
+                  <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-slate-100 bg-slate-50 shrink-0">
+                    <img src={selectedColumnData.authorAvatar} alt="author" className="w-full h-full object-contain" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-700">{selectedColumnData.authorName}</p>
+                    <p className="text-[11px] text-slate-400">{selectedColumnData.authorRole}</p>
+                  </div>
+                  <div className="ml-auto text-[11px] text-slate-400">{selectedColumnData.timestamp}</div>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="px-6 py-5">
+                <p className="text-[15px] text-slate-700 leading-relaxed whitespace-pre-wrap break-keep">
+                  {selectedColumnData.content}
+                </p>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 pb-8 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 bg-rose-50 px-4 py-2 rounded-full">
+                  <span className="text-base">👏</span>
+                  <span className="text-sm font-bold text-rose-500">{selectedColumnData.claps || 0}</span>
+                </div>
+                <button
+                  onClick={() => setSelectedColumnData(null)}
+                  className="text-sm font-bold text-slate-400 active:text-slate-700 transition-colors"
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
