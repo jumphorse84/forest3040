@@ -157,7 +157,7 @@ service cloud.firestore {
     }
 
     // Weekly Column rules
-    match /weekly_columns/{columnId} {
+    match /weekly_columns/{document=**} {
       allow read, write: if isAuthenticated();
     }
 
