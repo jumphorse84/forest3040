@@ -1133,14 +1133,23 @@ const ForestCommunityView = ({ onBack, user, userData, onShowToast }: { onBack?:
         </div>
 
         {/* 이번 주 칼럼 */}
-        <div>
-          <h3 className="text-sm font-bold text-slate-700 mb-3 px-1">이번 주 숲 이야기 🌿</h3>
-          <WeeklyColumnCard
-            weekInfo={weekInfo}
-            columnData={weeklyColumns[weekInfo.weekNum]}
-            onClick={() => weeklyColumns[weekInfo.weekNum] && setSelectedColumnData({ ...weeklyColumns[weekInfo.weekNum], weekNum: weekInfo.weekNum })}
-          />
-        </div>
+        {(() => {
+          const currentCol = Object.values(weeklyColumns)[0] ?? weeklyColumns[weekInfo.weekNum];
+          return (
+            <div>
+              <h3 className="text-sm font-bold text-slate-700 mb-3 px-1">이번 주 숲 이야기 🌿</h3>
+              <WeeklyColumnCard
+                weekInfo={weekInfo}
+                columnData={currentCol}
+                onClick={() => {
+                  if (currentCol) {
+                    setSelectedColumnData({ ...currentCol, weekNum: weekInfo.weekNum });
+                  }
+                }}
+              />
+            </div>
+          );
+        })()}
 
         
 
