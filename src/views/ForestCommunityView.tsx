@@ -706,7 +706,7 @@ function ColumnDetailModal({ weekNum, columnData, user, userData, profile, onClo
 
   // Listen to likes
   useEffect(() => {
-    const likesCol = collection(db, 'weekly_columns', String(weekNum), 'likes');
+    const likesCol = collection(db, 'weekly_columns', `week-${weekNum}`, 'likes');
     const unsub = onSnapshot(likesCol, (snap) => {
       setLikeCount(snap.size);
       setLiked(snap.docs.some(d => d.id === uid));
@@ -716,7 +716,7 @@ function ColumnDetailModal({ weekNum, columnData, user, userData, profile, onClo
 
   // Listen to comments
   useEffect(() => {
-    const commentsCol = collection(db, 'weekly_columns', String(weekNum), 'comments');
+    const commentsCol = collection(db, 'weekly_columns', `week-${weekNum}`, 'comments');
     const q = query(commentsCol, orderBy('timestamp', 'asc'));
     const unsub = onSnapshot(q, (snap) => {
       setComments(snap.docs.map(d => ({ id: d.id, ...d.data() } as ColumnComment)));
@@ -729,7 +729,7 @@ function ColumnDetailModal({ weekNum, columnData, user, userData, profile, onClo
   }, [comments]);
 
   const handleLike = async () => {
-    const likeRef = doc(db, 'weekly_columns', String(weekNum), 'likes', uid);
+    const likeRef = doc(db, 'weekly_columns', `week-${weekNum}`, 'likes', uid);
     if (liked) {
       await deleteDoc(likeRef);
     } else {
@@ -743,7 +743,7 @@ function ColumnDetailModal({ weekNum, columnData, user, userData, profile, onClo
     if (!commentText.trim() || isSending) return;
     setIsSending(true);
     try {
-      await addDoc(collection(db, 'weekly_columns', String(weekNum), 'comments'), {
+      await addDoc(collection(db, 'weekly_columns', `week-${weekNum}`, 'comments'), {
         uid,
         authorName: userData?.name || profile?.realName || '익명',
         authorAvatar: userData?.profile_image || profile?.avatar || '',
@@ -793,7 +793,11 @@ function ColumnDetailModal({ weekNum, columnData, user, userData, profile, onClo
                 <p className="text-sm font-bold text-slate-800">{columnData.authorName}</p>
                 <p className="text-[11px] text-slate-400">{columnData.authorRole}</p>
               </div>
-              <span className="ml-auto text-[11px] text-slate-400">{columnData.timestamp}</span>
+              <span className="ml-auto text-[11px] text-slate-400">
+                {typeof columnData.timestamp === 'object' && (columnData.timestamp as any)?.toDate 
+                  ? formatTimestamp((columnData.timestamp as any).toDate().toISOString()) 
+                  : String(columnData.timestamp || '')}
+              </span>
             </div>
           </div>
 
@@ -1142,7 +1146,7 @@ const ForestCommunityView = ({ onBack, user, userData, onShowToast }: { onBack?:
                 weekInfo={weekInfo}
                 columnData={currentCol}
                 onClick={() => {
-                  if (currentCol) {
+                  console.log('Card CLICKED!', currentCol); if (currentCol) {
                     setSelectedColumnData({ ...currentCol, weekNum: weekInfo.weekNum });
                   }
                 }}
