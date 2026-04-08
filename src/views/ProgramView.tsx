@@ -43,8 +43,17 @@ const ProgramView = ({ user, programs, onNavigateToDetail, onNavigateToAdd, onSh
         <div className="p-5 space-y-6">
           
           {filteredPrograms.length === 0 && (
-            <div className="text-center py-10 text-on-surface-variant text-sm">
-              해당 카테고리의 프로그램이 없습니다.
+            <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+              <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-5">
+                <Sparkles size={36} className="text-primary/60" />
+              </div>
+              <h3 className="text-[17px] font-extrabold text-on-surface mb-2 font-headline">
+                {activeTab === '전체' ? '아직 등록된 프로그램이 없어요' : `'${activeTab}' 프로그램이 없어요`}
+              </h3>
+              <p className="text-sm text-on-surface-variant leading-relaxed">
+                곧 다양한 프로그램이 업로드될 예정입니다.<br />
+                조금만 기다려 주세요 🌿
+              </p>
             </div>
           )}
 

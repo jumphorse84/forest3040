@@ -790,7 +790,7 @@ export default function App() {
         {!subPage && activeTab === 'program' && (
           <ProgramView 
             user={currentUser}
-            programs={programs.length > 0 ? programs : mockDb.programs} 
+            programs={programs} 
             onNavigateToDetail={(id: string) => { setSelectedProgramId(id); setSubPage('program_detail'); }} 
             onNavigateToAdd={() => setSubPage('program_add')}
             onShowToast={showToast} 
