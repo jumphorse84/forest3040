@@ -19,8 +19,10 @@ import { collection, doc, setDoc, addDoc, getDoc, onSnapshot, query, where, orde
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db as firestoreDb, auth, storage } from '../firebase';
 import { VISIT_CATEGORIES, MenuButton, ScheduleItem, MemberRow, OperationType, handleFirestoreError } from '../App';
+import Confetti from 'react-confetti';
+import { useWindowSize } from 'react-use';
 
-const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], onNavigateToMyForestBoard, onNavigate, onNavigateToKidsDetail }: any) => {
+const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], users = [], forests = [], onNavigateToMyForestBoard, onNavigate, onNavigateToKidsDetail }: any) => {
 
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   
@@ -43,7 +45,8 @@ const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], onNavi
 
   const activeSurveys = surveys?.filter((s: any) => s.status === 'active') || [];
 
-  
+  const { width, height } = useWindowSize();
+  const isMyBirthday = users?.find((u: any) => u.uid === user?.uid)?.birthdate?.substring(5) === today.substring(5);
   const calculateDDay = (targetDateStr: string) => {
     if (!targetDateStr) return '';
     const now = new Date();
@@ -121,6 +124,7 @@ const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], onNavi
 
   return (
     <>
+      {isMyBirthday && <Confetti width={width} height={height} recycle={false} numberOfPieces={500} gravity={0.15} style={{ zIndex: 9999, position: 'fixed', top: 0, left: 0 }} />}
       {/* Greeting Card - Spiritual & Community Dashboard */}
       <section className="relative overflow-hidden squircle p-8 bg-gradient-to-br from-[#0F6045] to-[#1a7858] text-white shadow-[0_15px_40px_rgba(15,96,69,0.2)] group">
         <div className="absolute top-0 right-0 -mr-8 -mt-8 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
@@ -240,11 +244,50 @@ const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], onNavi
         </div>
       </div>
       <div className="space-y-4">
-        {schedules
-          .filter((s: any) => s.active !== false)
-          .sort((a: any, b: any) => (a.fullDate || '').localeCompare(b.fullDate || ''))
-          .slice(0, 5)
-          .map((schedule: any) => {
+        {(() => {
+          const todayStr = today; // "YYYY-MM-DD"
+          const currentYearStr = new Date().getFullYear().toString();
+          
+          // 1. Process Birthdays
+          const upcomingBirthdays = users
+            ? users.filter((u: any) => u.birthdate && u.birthdate.length >= 5)
+                .map((u: any) => {
+                  const mm_dd = u.birthdate.substring(5); // e.g. "05-12"
+                  let bdayFullDate = `${currentYearStr}-${mm_dd}`;
+                  if (bdayFullDate < todayStr) {
+                    // If it already passed this year, we COULD show next year's, 
+                    // but usually upcoming schedule only shows near future. We'll skip or use next year
+                    bdayFullDate = `${parseInt(currentYearStr) + 1}-${mm_dd}`; 
+                  }
+                  
+                  const f = forests?.find((f: any) => f.id === u.forest_id || f.id === u.forest);
+                  const forestName = f ? f.name : '소속없음';
+
+                  return {
+                    id: `bday-${u.uid}`,
+                    title: `🎉 ${u.name}님의 생일`,
+                    fullDate: bdayFullDate,
+                    time: '하루 종일 🎂',
+                    location: `${forestName} 숲`,
+                    active: true,
+                    isBirthday: true
+                  };
+                })
+                .filter((bday: any) => bday.fullDate >= todayStr) // just in case
+            : [];
+
+          // 2. Combine and sort
+          const validSchedules = schedules
+            .filter((s: any) => s.active !== false && (s.fullDate && s.fullDate >= todayStr))
+            .concat(upcomingBirthdays)
+            .sort((a: any, b: any) => (a.fullDate || '').localeCompare(b.fullDate || ''))
+            .slice(0, 5);
+
+          if (validSchedules.length === 0) {
+            return <div className="text-sm text-center py-6 text-on-surface-variant">예정된 일정이 없습니다.</div>;
+          }
+
+          return validSchedules.map((schedule: any) => {
             const parts = schedule.fullDate ? schedule.fullDate.split('-') : [];
             const month = parts.length >= 2 ? parseInt(parts[1]) + '월' : '';
             const day = parts.length >= 3 ? parseInt(parts[2]) + '' : '';
@@ -257,11 +300,12 @@ const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], onNavi
                 time={schedule.time}
                 title={schedule.title}
                 location={schedule.location}
-                dDayClass={schedule.active ? "bg-error-container/20 text-on-error-container" : "bg-surface-container-high text-on-surface-variant"}
+                dDayClass={schedule.isBirthday ? "bg-pink-100 text-pink-600 border border-pink-200" : (schedule.active ? "bg-error-container/20 text-on-error-container" : "bg-surface-container-high text-on-surface-variant")}
                 active={schedule.active}
               />
             );
-          })}
+          });
+        })()}
       </div>
     </section>
 

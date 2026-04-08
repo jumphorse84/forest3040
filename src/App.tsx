@@ -758,6 +758,8 @@ export default function App() {
             <HomeView 
               kidsCares={kidsCares}
               user={currentUser} 
+              users={users.length > 0 ? users : mockDb.users}
+              forests={mergedForests}
               schedules={schedules.length > 0 ? schedules : mockDb.schedules} 
               surveys={surveys}
               attendance={attendance}
