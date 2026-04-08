@@ -688,6 +688,192 @@ function ForestRoom({forest,onBack,messages,onSendMessage,onAddStory,isWeeklyTur
 }
 
 // ──────────────────────────────────────────────────
+// COLUMN DETAIL MODAL (좋아요 + 실명 댓글)
+// ──────────────────────────────────────────────────
+interface ColumnComment { id: string; uid: string; authorName: string; authorAvatar: string; text: string; timestamp: any; }
+
+function ColumnDetailModal({ weekNum, columnData, user, userData, profile, onClose }:
+  { weekNum: number; columnData: ColumnData; user: any; userData: any; profile: UserProfile | null; onClose: () => void; }) {
+
+  const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
+  const [likeBounce, setLikeBounce] = useState(false);
+  const [comments, setComments] = useState<ColumnComment[]>([]);
+  const [commentText, setCommentText] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const commentEndRef = useRef<HTMLDivElement>(null);
+  const uid = user?.uid || 'anon';
+
+  // Listen to likes
+  useEffect(() => {
+    const likesCol = collection(db, 'weekly_columns', String(weekNum), 'likes');
+    const unsub = onSnapshot(likesCol, (snap) => {
+      setLikeCount(snap.size);
+      setLiked(snap.docs.some(d => d.id === uid));
+    });
+    return () => unsub();
+  }, [weekNum, uid]);
+
+  // Listen to comments
+  useEffect(() => {
+    const commentsCol = collection(db, 'weekly_columns', String(weekNum), 'comments');
+    const q = query(commentsCol, orderBy('timestamp', 'asc'));
+    const unsub = onSnapshot(q, (snap) => {
+      setComments(snap.docs.map(d => ({ id: d.id, ...d.data() } as ColumnComment)));
+    });
+    return () => unsub();
+  }, [weekNum]);
+
+  useEffect(() => {
+    commentEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [comments]);
+
+  const handleLike = async () => {
+    const likeRef = doc(db, 'weekly_columns', String(weekNum), 'likes', uid);
+    if (liked) {
+      await deleteDoc(likeRef);
+    } else {
+      await setDoc(likeRef, { uid, likedAt: serverTimestamp() });
+      setLikeBounce(true);
+      setTimeout(() => setLikeBounce(false), 400);
+    }
+  };
+
+  const handleSendComment = async () => {
+    if (!commentText.trim() || isSending) return;
+    setIsSending(true);
+    try {
+      await addDoc(collection(db, 'weekly_columns', String(weekNum), 'comments'), {
+        uid,
+        authorName: userData?.name || profile?.realName || '익명',
+        authorAvatar: userData?.profile_image || profile?.avatar || '',
+        text: commentText.trim(),
+        timestamp: serverTimestamp(),
+      });
+      setCommentText('');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[300] flex items-end"
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <motion.div
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 28, stiffness: 220 }}
+        className="relative w-full bg-white rounded-t-[2rem] flex flex-col"
+        style={{ maxHeight: '90vh' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Handle */}
+        <div className="flex justify-center pt-3 pb-1 shrink-0">
+          <div className="w-10 h-1 bg-slate-200 rounded-full" />
+        </div>
+
+        {/* Scrollable content */}
+        <div className="overflow-y-auto flex-1">
+          {/* Header */}
+          <div className="px-6 pt-3 pb-5 border-b border-slate-100">
+            <span className="bg-[#8C5E45] text-white text-[10px] font-bold px-3 py-1 rounded-full">이번 주 숲 이야기</span>
+            <h2 className="text-[22px] font-extrabold text-slate-800 leading-snug break-keep mt-3 mb-4">{columnData.title}</h2>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-slate-100 bg-slate-50 shrink-0">
+                <img src={columnData.authorAvatar} alt="author" className="w-full h-full object-contain" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-800">{columnData.authorName}</p>
+                <p className="text-[11px] text-slate-400">{columnData.authorRole}</p>
+              </div>
+              <span className="ml-auto text-[11px] text-slate-400">{columnData.timestamp}</span>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="px-6 py-6">
+            <p className="text-[15px] text-slate-700 leading-[1.9] whitespace-pre-wrap break-keep">
+              {columnData.content}
+            </p>
+          </div>
+
+          {/* Like Bar */}
+          <div className="px-6 py-4 border-t border-slate-100 flex items-center gap-4">
+            <button
+              onClick={handleLike}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all active:scale-95 ${
+                liked
+                  ? 'bg-rose-500 text-white shadow-md shadow-rose-200'
+                  : 'bg-slate-100 text-slate-500 hover:bg-rose-50 hover:text-rose-400'
+              } ${likeBounce ? 'scale-125' : 'scale-100'}`}
+              style={{ transition: 'transform 0.2s, background 0.2s' }}
+            >
+              <span className="text-base">{liked ? '❤️' : '🤍'}</span>
+              <span>{likeCount}</span>
+            </button>
+            <span className="text-[12px] text-slate-400">댓글 {comments.length}개</span>
+          </div>
+
+          {/* Comments */}
+          <div className="px-6 pb-4 space-y-4 border-t border-slate-50">
+            {comments.length === 0 ? (
+              <p className="text-center text-[13px] text-slate-400 py-6">첫 번째 댓글을 남겨보세요 💬</p>
+            ) : (
+              comments.map(c => (
+                <div key={c.id} className="flex gap-3 pt-4">
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                    {c.authorAvatar
+                      ? <img src={c.authorAvatar} alt={c.authorName} className="w-full h-full object-cover" />
+                      : <div className="w-full h-full flex items-center justify-center text-sm font-bold text-slate-400">{c.authorName?.[0]}</div>
+                    }
+                  </div>
+                  <div className="flex-1 bg-slate-50 rounded-2xl rounded-tl-sm px-4 py-3">
+                    <p className="text-[12px] font-bold text-slate-700 mb-1">{c.authorName}</p>
+                    <p className="text-[14px] text-slate-600 leading-relaxed">{c.text}</p>
+                  </div>
+                </div>
+              ))
+            )}
+            <div ref={commentEndRef} />
+          </div>
+        </div>
+
+        {/* Fixed comment input */}
+        <div className="shrink-0 px-4 py-3 border-t border-slate-100 bg-white flex items-center gap-3 pb-safe">
+          <div className="w-8 h-8 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+            {userData?.profile_image
+              ? <img src={userData.profile_image} className="w-full h-full object-cover" alt="me" />
+              : <div className="w-full h-full flex items-center justify-center text-xs font-bold text-slate-400">{userData?.name?.[0] || '나'}</div>
+            }
+          </div>
+          <input
+            className="flex-1 bg-slate-50 text-[14px] text-slate-700 rounded-full px-4 py-2.5 outline-none border border-slate-200 focus:border-[#8C5E45]/50 transition-colors"
+            placeholder="따뜻한 댓글을 남겨주세요..."
+            value={commentText}
+            onChange={e => setCommentText(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSendComment()}
+          />
+          <button
+            onClick={handleSendComment}
+            disabled={!commentText.trim() || isSending}
+            className="w-9 h-9 bg-[#0F6045] text-white rounded-full flex items-center justify-center disabled:opacity-40 active:scale-90 transition-all shrink-0"
+          >
+            <Send size={16} />
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ──────────────────────────────────────────────────
 // MAIN VIEW
 // ──────────────────────────────────────────────────
 const ForestCommunityView = ({ onBack, user, userData, onShowToast }: { onBack?: () => void; user?: any; userData?: any; onShowToast?: (m: string) => void }) => {
@@ -697,7 +883,7 @@ const ForestCommunityView = ({ onBack, user, userData, onShowToast }: { onBack?:
   const [forestStories, setForestStories] = useState<Record<string, Story[]>>({});
   const [allChats, setAllChats] = useState<Record<string, ChatMsg[]>>({});
   const [weeklyColumns, setWeeklyColumns] = useState<Record<number, ColumnData>>({});
-  const [selectedColumnData, setSelectedColumnData] = useState<ColumnData | null>(null);
+  const [selectedColumnData, setSelectedColumnData] = useState<(ColumnData & { weekNum?: number }) | null>(null);
 
   const activeForest = FORESTS.find(f => f.id === activeForestId);
   const weekInfo = useMemo(() => getCurrentWeekInfo(), []);
@@ -952,64 +1138,25 @@ const ForestCommunityView = ({ onBack, user, userData, onShowToast }: { onBack?:
           <WeeklyColumnCard
             weekInfo={weekInfo}
             columnData={weeklyColumns[weekInfo.weekNum]}
-            onClick={() => weeklyColumns[weekInfo.weekNum] && setSelectedColumnData(weeklyColumns[weekInfo.weekNum])}
+            onClick={() => weeklyColumns[weekInfo.weekNum] && setSelectedColumnData({ ...weeklyColumns[weekInfo.weekNum], weekNum: weekInfo.weekNum })}
           />
         </div>
 
-        {/* Column Read Modal */}
-        {selectedColumnData && (
-          <div className="fixed inset-0 z-[300] flex items-end" onClick={() => setSelectedColumnData(null)}>
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-            <div
-              className="relative w-full max-h-[85vh] bg-white rounded-t-[2rem] overflow-y-auto animate-in slide-in-from-bottom-4 duration-300"
-              onClick={e => e.stopPropagation()}
-            >
-              {/* Handle bar */}
-              <div className="flex justify-center pt-4 pb-2">
-                <div className="w-10 h-1 bg-slate-200 rounded-full" />
-              </div>
+        
 
-              {/* Header */}
-              <div className="px-6 pt-2 pb-4 border-b border-slate-100">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="bg-[#8C5E45] text-white text-[10px] font-bold px-3 py-1 rounded-full">이번 주 숲 이야기</span>
-                </div>
-                <h2 className="text-[20px] font-extrabold text-slate-800 leading-snug break-keep">{selectedColumnData.title}</h2>
-                <div className="flex items-center gap-2 mt-3">
-                  <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-slate-100 bg-slate-50 shrink-0">
-                    <img src={selectedColumnData.authorAvatar} alt="author" className="w-full h-full object-contain" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-slate-700">{selectedColumnData.authorName}</p>
-                    <p className="text-[11px] text-slate-400">{selectedColumnData.authorRole}</p>
-                  </div>
-                  <div className="ml-auto text-[11px] text-slate-400">{selectedColumnData.timestamp}</div>
-                </div>
-              </div>
-
-              {/* Body */}
-              <div className="px-6 py-5">
-                <p className="text-[15px] text-slate-700 leading-relaxed whitespace-pre-wrap break-keep">
-                  {selectedColumnData.content}
-                </p>
-              </div>
-
-              {/* Footer */}
-              <div className="px-6 pb-8 flex items-center justify-between">
-                <div className="flex items-center gap-1.5 bg-rose-50 px-4 py-2 rounded-full">
-                  <span className="text-base">👏</span>
-                  <span className="text-sm font-bold text-rose-500">{selectedColumnData.claps || 0}</span>
-                </div>
-                <button
-                  onClick={() => setSelectedColumnData(null)}
-                  className="text-sm font-bold text-slate-400 active:text-slate-700 transition-colors"
-                >
-                  닫기
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Column Detail Modal — Full Featured */}
+        <AnimatePresence>
+          {selectedColumnData && (
+            <ColumnDetailModal
+              weekNum={selectedColumnData.weekNum ?? weekInfo.weekNum}
+              columnData={selectedColumnData}
+              user={user}
+              userData={userData}
+              profile={profile}
+              onClose={() => setSelectedColumnData(null)}
+            />
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
