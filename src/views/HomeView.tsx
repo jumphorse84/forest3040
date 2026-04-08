@@ -1,11 +1,20 @@
 import { TicketModal } from '../components/TicketModal';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Menu, Bell, User, Flame, QrCode, Users, ClipboardList, Wallet, FileText,
   MapPin, ChevronRight, ChevronLeft, Home, LayoutGrid, BookOpen, Calendar, Baby,
   MessageCircle, ArrowLeft, CheckCircle2, XCircle, FileEdit, X, Search, Phone, Lock, UserCircle, Settings, Award, Clock, Heart, MessageSquare, Send, LogOut, Sparkles, TreePine, HeartHandshake, GraduationCap, History, Plus, Play,
-  SlidersHorizontal, Camera, Bookmark, MoreHorizontal, Music, Megaphone, Trash2, MoreVertical, PieChart, AlertTriangle, TrendingUp
+  SlidersHorizontal, Camera, Bookmark, MoreHorizontal, Music, Megaphone, Trash2, MoreVertical, PieChart, AlertTriangle, TrendingUp, Quote
 } from 'lucide-react';
+
+const BIBLE_VERSES = [
+  "항상 기뻐하라 쉬지 말고 기도하라 범사에 감사하라 (살전 5:16-18)",
+  "여호와를 기뻐하라 그가 네 마음의 소원을 네게 이루어 주시리로다 (시 37:4)",
+  "두려워하지 말라 내가 너와 함께 함이라 놀라지 말라 나는 네 하나님이 됨이라 (사 41:10)",
+  "수고하고 무거운 짐 진 자들아 다 내게로 오라 내가 너희를 쉬게 하리라 (마 11:28)",
+  "내가 네게 명령한 것이 아니냐 강하고 담대하라 두려워하지 말며 놀라지 말라 (수 1:9)",
+  "나의 영혼아 잠잠히 하나님만 바라라 무릇 나의 소망이 그로부터 나오는도다 (시 62:5)"
+];
 import { collection, doc, setDoc, addDoc, getDoc, onSnapshot, query, where, orderBy, getDocFromServer, Timestamp, updateDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db as firestoreDb, auth, storage } from '../firebase';
@@ -58,31 +67,41 @@ const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], onNavi
     return diffDays >= 0 && diffDays <= 7; // within 7 days
   });
 
+  const todaysVerse = useMemo(() => {
+    const dayOfYear = Math.floor((new Date().getTime() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 1000 / 60 / 60 / 24);
+    return BIBLE_VERSES[dayOfYear % BIBLE_VERSES.length];
+  }, []);
+
   return (
     <>
-      {/* Greeting Card */}
-      <section className="relative overflow-hidden squircle p-8 bg-gradient-to-br from-emerald-300 to-emerald-400 text-on-primary-container shadow-sm group">
-        <div className="absolute top-0 right-0 -mr-8 -mt-8 w-40 h-40 bg-white/20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
+      {/* Greeting Card - Spiritual & Community Dashboard */}
+      <section className="relative overflow-hidden squircle p-8 bg-gradient-to-br from-[#0F6045] to-[#1a7858] text-white shadow-lg shadow-[#0F6045]/20 group">
+        <div className="absolute top-0 right-0 -mr-8 -mt-8 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
         <div className="relative z-10">
-          <p className="font-headline text-lg font-semibold opacity-90 mb-1">기쁨 가득한 한 주 되세요, {user.name} 님</p>
-          <div className="flex items-end gap-2">
-            <h1 className="font-headline text-4xl font-extrabold tracking-tight">{user.score}점</h1>
-            <span className="mb-1 text-sm font-bold opacity-75">내 활동 점수</span>
+          <p className="font-headline text-[15px] font-semibold opacity-90 mb-4">{user.name} 님, 오늘 하루도 주님 안에서 평안하세요.</p>
+          
+          {/* Bible Verse Area */}
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 mb-6 relative border border-white/10">
+            <Quote className="absolute top-3 left-3 text-white/20 w-8 h-8 -scale-x-100" />
+            <p className="text-[13px] font-medium leading-relaxed pt-2 pl-6 pr-2 text-white/95">
+              {todaysVerse}
+            </p>
           </div>
-          <div className="mt-6 flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-white/30 backdrop-blur-md py-2 px-4 rounded-full w-fit">
-              <Flame className="w-4 h-4" fill="currentColor" />
-              <span className="text-xs font-bold uppercase tracking-wider">상위 5%</span>
+
+          {/* Gamification / Community Tags */}
+          <div className="flex flex-col gap-2.5">
+            <div className="flex items-center gap-2.5 bg-white/20 backdrop-blur-md py-2.5 px-4 rounded-xl w-full active:scale-[0.98] transition-transform cursor-pointer">
+              <span className="text-[13px]">🌟</span>
+              <span className="text-[13px] font-extrabold uppercase tracking-wider text-white">베베숲 누적 열매 : 154개</span>
+            </div>
+            <div className="flex items-center gap-2.5 bg-white/20 backdrop-blur-md py-2.5 px-4 rounded-xl w-full active:scale-[0.98] transition-transform cursor-pointer">
+              <span className="text-[13px]">🗺️</span>
+              <span className="text-[13px] font-extrabold uppercase tracking-wider text-[#d1fae5]">4월 동행 스탬프 : 3 / 10 획득</span>
             </div>
           </div>
         </div>
-        <div className="absolute -bottom-6 -right-6 w-32 h-32 opacity-20">
-          <img 
-            className="w-full h-full object-contain" 
-            alt="상큼한 초록 잎사귀 수채화 텍스처" 
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuBTliXpNYHI2hYhXGRPTI8UzhskQgAgV_Ea6d0i8IK-htrFSr7OjZD_TFziS-_qPf-aTbB-yelF9F_gNOMm-Ho0lqKqubgQWL3FJwo6_0TW1Dv-g6t61ojCgHZYmcIoBIeMNwxfZGXluLM9SgEi4w9z3EYsc7ADBZ6F4oHAE42NiTNwdLMQMvzdHeIpy2p5RyqXuX13Pt1xvnBNVTp-6rW8-BotFzZreFB8Z2nkpswN4JDil48AEBjijjd2Mm3dST4gwP--BYVT1Q"
-            referrerPolicy="no-referrer"
-          />
+        <div className="absolute -bottom-6 -right-6 w-32 h-32 opacity-[0.08]">
+          <BookOpen className="w-full h-full text-white" />
         </div>
       </section>
 
