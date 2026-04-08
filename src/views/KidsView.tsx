@@ -108,7 +108,7 @@ const KidsView = ({ user, kidsCares = [], forests = [], onNavigateToAdd, onNavig
               </div>
               {isAdminOrLeader && (
                 <button 
-                  onClick={() => onNavigateToAdmin(activeCare.id)}
+                  onClick={(e) => { e.stopPropagation(); onNavigateToAdmin(activeCare.id); }}
                   className="w-full py-3 bg-[#0F6045] text-white rounded-xl font-bold flex flex-row items-center justify-center gap-2 relative shadow-md shadow-[#0F6045]/20 active:scale-95 transition-transform"
                 >
                   <Users size={18} />
