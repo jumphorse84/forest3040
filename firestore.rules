@@ -161,6 +161,25 @@ service cloud.firestore {
       allow read, write: if isAuthenticated();
     }
 
+    // Meeting Minutes rules
+    match /meeting_minutes/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isLeader();
+      
+      // Specifically allow any user to read/write under likes and comments
+      match /likes/{userId} {
+        allow read, write: if isAuthenticated();
+      }
+      match /comments/{commentId} {
+        allow read, write: if isAuthenticated();
+      }
+    }
+
+    // Meeting Agendas rules
+    match /meeting_agendas/{document=**} {
+      allow read, write: if isAuthenticated();
+    }
+
     // Kids Care rules
     match /kids_cares/{careId} {
       allow read: if isAuthenticated();
@@ -182,6 +201,12 @@ service cloud.firestore {
       );
       allow delete: if isAdmin() || isLeader() || isPastor() ||
         resource.data.parent_id == request.auth.uid;
+    }
+
+    // Family News rules
+    match /family_news/{newsId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin() || isLeader() || isPastor();
     }
   }
 }

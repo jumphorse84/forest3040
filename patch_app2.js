@@ -1,19 +1,28 @@
 const fs = require('fs');
+let lines = fs.readFileSync('src/App.tsx', 'utf8').split(/\r?\n/);
 
-const file = 'c:/Users/admin/Desktop/웹앱/포레스트/forest3040main/src/App.tsx';
-let data = fs.readFileSync(file, 'utf8');
+const newBellFn = `            <div 
+              className="flex items-center gap-2 active:scale-95 duration-200 cursor-pointer relative"
+              onClick={() => {
+                setIsNotificationModalOpen(true);
+                if (user && hasUnreadNotifications) {
+                  updateDoc(doc(firestoreDb, 'users', user.uid), { lastCheckedNotificationAt: new Date().toISOString() });
+                }
+              }}
+            >
+              <Bell className="text-stone-600 hover:opacity-80 transition-opacity w-6 h-6" />
+              {hasUnreadNotifications && (
+                <span className="absolute top-0 -right-0.5 w-[10px] h-[10px] bg-red-500 border-2 border-surface rounded-full shadow-sm animate-pulse"></span>
+              )}
+            </div>`;
 
-const targetStr = `            <HomeView 
-              user={currentUser} `;
-
-const replaceStr = `            <HomeView 
-              user={currentUser} 
-              kidsCares={kidsCares}`;
-
-if (!data.includes('kidsCares={kidsCares}') && data.includes(targetStr)) {
-  data = data.replace(targetStr, replaceStr);
-  fs.writeFileSync(file, data);
-  console.log("App.tsx HomeView updated successfully.");
-} else {
-  console.log("Not found or already updated.");
+for (let i = 0; i < lines.length; i++) {
+  if (lines[i].includes('<Bell className="text-stone-600') && !lines[i-1].includes('onClick')) {
+    // Found the bell icon, lets replace lines i-1 to i+1
+    lines.splice(i-1, 3, newBellFn);
+    console.log('Bell icon patched at line ' + i);
+    break;
+  }
 }
+
+fs.writeFileSync('src/App.tsx', lines.join('\n'), 'utf8');

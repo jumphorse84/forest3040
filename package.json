@@ -10,9 +10,16 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist",
+    "cap:build": "npm run build && npx cap sync",
+    "cap:android": "npm run build && npx cap sync android && npx cap open android",
+    "cap:ios": "npm run build && npx cap sync ios && npx cap open ios"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.0",
+    "@capacitor/cli": "^8.3.0",
+    "@capacitor/core": "^8.3.0",
+    "@capacitor/ios": "^8.3.0",
     "@google/genai": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",

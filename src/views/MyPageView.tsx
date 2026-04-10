@@ -9,13 +9,15 @@ import { collection, doc, setDoc, addDoc, getDoc, onSnapshot, query, where, orde
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db as firestoreDb, auth, storage } from '../firebase';
 import { VISIT_CATEGORIES, MenuButton, ScheduleItem, MemberRow, OperationType, handleFirestoreError } from '../App';
+import { AccountSettingsModal } from '../components/AccountSettingsModal';
 
 const MyPageView = ({ user, forests, attendance, onBack, onShowToast, onLogout, onNavigateToAdmin }: any) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editPhone, setEditPhone] = useState(user.phone || '');
   const [editBio, setEditBio] = useState(user.bio || '');
+  const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false);
 
-  const forestName = forests?.find((f: any) => f.forest_id === user.forest_id)?.name || '소속 없음';
+  const forestName = forests?.find((f: any) => f.id === user.forest_id || f.id === user.forest)?.name || '소속 없음';
   
   const userActivities = attendance
     .filter((a: any) => a.uid === user.uid)
@@ -178,7 +180,7 @@ const MyPageView = ({ user, forests, attendance, onBack, onShowToast, onLogout, 
               <ChevronRight className="text-primary" size={24} />
             </button>
           )}
-          <button onClick={() => onShowToast('계정 설정 페이지로 이동합니다.')} className="w-full flex items-center justify-between p-5 bg-surface-container-low rounded-2xl hover:bg-surface-container-high transition-colors">
+          <button onClick={() => setIsAccountSettingsOpen(true)} className="w-full flex items-center justify-between p-5 bg-surface-container-low rounded-2xl hover:bg-surface-container-high transition-colors">
             <div className="flex items-center gap-4">
               <Settings className="text-on-surface-variant" size={24} />
               <span className="font-bold text-on-surface">계정 설정</span>
@@ -193,6 +195,13 @@ const MyPageView = ({ user, forests, attendance, onBack, onShowToast, onLogout, 
           </button>
         </section>
       </main>
+
+      <AccountSettingsModal
+        isOpen={isAccountSettingsOpen}
+        onClose={() => setIsAccountSettingsOpen(false)}
+        onLogout={onLogout}
+        user={user}
+      />
     </div>
   );
 };

@@ -10,16 +10,16 @@ import {
   MessageCircle, ArrowLeft, CheckCircle2, XCircle, FileEdit, X, Search, Phone, Lock, UserCircle, Settings, Award, Clock, Heart, MessageSquare, Send, LogOut, Sparkles, TreePine, HeartHandshake, GraduationCap, History, Plus, Play,
   SlidersHorizontal, Camera, Bookmark, MoreHorizontal, Music, Megaphone, Trash2, MoreVertical, PieChart, AlertTriangle, TrendingUp
 } from 'lucide-react';
-import { 
-  collection, 
-  doc, 
-  setDoc, 
+import {
+  collection,
+  doc,
+  setDoc,
   addDoc,
-  getDoc, 
-  onSnapshot, 
-  query, 
-  where, 
-  orderBy, 
+  getDoc,
+  onSnapshot,
+  query,
+  where,
+  orderBy,
   getDocFromServer,
   Timestamp,
   updateDoc,
@@ -27,10 +27,10 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db as firestoreDb, auth, storage } from './firebase';
-import { 
-  signInWithCustomToken, 
-  onAuthStateChanged, 
-  signOut, 
+import {
+  signInWithCustomToken,
+  onAuthStateChanged,
+  signOut,
   User as FirebaseUser,
   updateProfile,
   GoogleAuthProvider,
@@ -40,6 +40,27 @@ import {
   OAuthProvider
 } from 'firebase/auth';
 import { jwtDecode } from 'jwt-decode';
+import AdminUserManagementView from './views/AdminUserManagementView';
+import CalendarView from './views/CalendarView';
+import ForestCommunityView from './views/ForestCommunityView';
+import HomeView from './views/HomeView';
+import KidsCareAddView from './views/KidsCareAddView';
+import KidsCareAdminView from './views/KidsCareAdminView';
+import KidsCareApplyView from './views/KidsCareApplyView';
+import KidsCareDetailView from './views/KidsCareDetailView';
+import KidsView from './views/KidsView';
+import MembersView from './views/MembersView';
+import MinutesView from './views/MinutesView';
+import MyPageView from './views/MyPageView';
+import PastoralStatsDashboardView from './views/PastoralStatsDashboardView';
+import ProgramAddView from './views/ProgramAddView';
+import ProgramDetailView from './views/ProgramDetailView';
+import ProgramView from './views/ProgramView';
+import SurveyView from './views/SurveyView';
+import WorshipAddView from './views/WorshipAddView';
+import WorshipDetailView from './views/WorshipDetailView';
+import WorshipView from './views/WorshipView';
+import { NotificationModal } from './components/NotificationModal';
 
 // ==========================================
 // Types & Error Handling
@@ -140,33 +161,9 @@ export const FOREST_GROUPS = [
 // ==========================================
 // 2. Main App Component
 // ==========================================
-// ==========================================
-// View Imports (modularized)
-// ==========================================
-import HomeView from './views/HomeView';
-import MembersView from './views/MembersView';
-import AdminUserManagementView from './views/AdminUserManagementView';
-import MyPageView from './views/MyPageView';
-import ProgramView from './views/ProgramView';
-import ProgramAddView from './views/ProgramAddView';
-import ProgramDetailView from './views/ProgramDetailView';
-import WorshipView from './views/WorshipView';
-import WorshipAddView from './views/WorshipAddView';
-import WorshipDetailView from './views/WorshipDetailView';
-import ForestCommunityView from './views/ForestCommunityView';
-
-import KidsView from './views/KidsView';
-import CalendarView from './views/CalendarView';
-import SurveyView from './views/SurveyView';
-import PastoralStatsDashboardView from './views/PastoralStatsDashboardView';
-import KidsCareAddView from './views/KidsCareAddView';
-import KidsCareDetailView from './views/KidsCareDetailView';
-import KidsCareApplyView from './views/KidsCareApplyView';
-import KidsCareAdminView from './views/KidsCareAdminView';
-
 export default function App() {
-  const [activeTab, setActiveTab] = useState('home'); 
-  const [subPage, setSubPage] = useState<string | null>(null); 
+  const [activeTab, setActiveTab] = useState('home');
+  const [subPage, setSubPage] = useState<string | null>(null);
   const [selectedForestId, setSelectedForestId] = useState<string | null>(null);
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [selectedWorshipId, setSelectedWorshipId] = useState<string | null>(null);
@@ -176,7 +173,7 @@ export default function App() {
   const [showRedirectLoginModal, setShowRedirectLoginModal] = useState(false);
 
   const handleNavigateToAdmin = () => setSubPage('admin');
-  
+
   // Firebase Auth & Firestore State
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userData, setUserData] = useState<any>(null);
@@ -192,6 +189,8 @@ export default function App() {
   const [fees, setFees] = useState<any[]>([]);
   const [pastoralRecords, setPastoralRecords] = useState<any[]>([]);
   const [weeklySettlements, setWeeklySettlements] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -322,8 +321,8 @@ export default function App() {
     // Fees listener - restricted by permission
     const isAdminUser = userData?.role === 'admin' || user?.uid === 'sfViap2UZ2alO1kzinMETlcLCxv1' || user?.email === 'seokgwan.ms01@gmail.com' || user?.email === 'jumphorse@nate.com';
     const canSeeAllFees = isAdminUser || userData?.permissions?.finance;
-    const feesQuery = canSeeAllFees 
-      ? collection(firestoreDb, 'fees') 
+    const feesQuery = canSeeAllFees
+      ? collection(firestoreDb, 'fees')
       : query(collection(firestoreDb, 'fees'), where('uid', '==', user.uid));
 
     const unsubFees = onSnapshot(feesQuery, (snapshot) => {
@@ -331,26 +330,31 @@ export default function App() {
     }, (err) => handleFirestoreError(err, OperationType.GET, 'fees'));
 
     const canSeePastoral = isAdminUser || userData?.role === 'pastor' || userData?.role === 'leader';
-    let unsubPastoral = () => {};
-    let unsubSettlements = () => {};
+    let unsubPastoral = () => { };
+    let unsubSettlements = () => { };
 
     if (canSeePastoral) {
-      const pastoralQuery = isAdminUser 
+      const pastoralQuery = isAdminUser
         ? collection(firestoreDb, 'pastoral_records')
         : query(collection(firestoreDb, 'pastoral_records'), where('forest_id', '==', userData?.forest_id));
-        
+
       unsubPastoral = onSnapshot(pastoralQuery, (snapshot) => {
         setPastoralRecords(snapshot.docs.map(d => ({ ...d.data(), id: d.id })));
       }, (err) => handleFirestoreError(err, OperationType.GET, 'pastoral_records'));
 
-      const settlementsQuery = isAdminUser 
+      const settlementsQuery = isAdminUser
         ? collection(firestoreDb, 'weekly_settlements')
         : query(collection(firestoreDb, 'weekly_settlements'), where('forest_id', '==', userData?.forest_id));
-        
+
       unsubSettlements = onSnapshot(settlementsQuery, (snapshot) => {
         setWeeklySettlements(snapshot.docs.map(d => ({ ...d.data(), id: d.id })));
       }, (err) => handleFirestoreError(err, OperationType.GET, 'weekly_settlements'));
     }
+
+    const qNotifications = query(collection(firestoreDb, 'notifications'), orderBy('createdAt', 'desc'));
+    const unsubNotifications = onSnapshot(qNotifications, (snapshot) => {
+      setNotifications(snapshot.docs.map(d => ({ ...d.data(), id: d.id })).slice(0, 50));
+    }, (err) => handleFirestoreError(err, OperationType.GET, 'notifications'));
 
     return () => {
       unsubUsers();
@@ -365,6 +369,7 @@ export default function App() {
       unsubFees();
       unsubPastoral();
       unsubSettlements();
+      unsubNotifications();
     };
   }, [isAuthReady, user?.uid, userData?.role, userData?.forest_id, userData?.permissions?.finance]);
 
@@ -372,7 +377,7 @@ export default function App() {
     try {
       const userRef = doc(firestoreDb, 'users', firebaseUser.uid);
       const userSnap = await getDoc(userRef);
-      
+
       if (!userSnap.exists()) {
         const newUser = {
           uid: firebaseUser.uid,
@@ -487,7 +492,7 @@ export default function App() {
         // Try 'oidc.oidc.kakao' as a fallback
         success = await tryLogin('oidc.oidc.kakao');
       }
-      
+
       if (!success) {
         showToast("카카오 로그인 설정이 올바르지 않습니다.");
       }
@@ -576,26 +581,26 @@ export default function App() {
         </div>
         <h1 className="text-3xl font-bold font-headline text-on-surface mb-2">FOREST 3040</h1>
         <p className="text-on-surface-variant mb-12">함께 믿음으로 성장하는 공동체</p>
-        
-        <button 
+
+        <button
           onClick={handleLogin}
           className="w-full max-w-sm bg-white border border-surface-container-highest text-on-surface py-4 px-6 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-sm hover:bg-surface-container-lowest transition-colors active:scale-95"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
           </svg>
           Google 계정으로 로그인
         </button>
 
-        <button 
+        <button
           onClick={handleKakaoLogin}
           className="w-full max-w-sm mt-3 bg-[#FEE500] text-black/85 py-4 px-6 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-sm hover:bg-[#FEE500]/90 transition-colors active:scale-95"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 3c-5.523 0-10 3.47-10 7.75 0 2.73 1.88 5.13 4.68 6.47-.15.48-.48 1.68-.55 1.95-.09.33.12.33.26.24.11-.08 1.73-1.15 2.45-1.65 1.01.29 2.07.44 3.16.44 5.523 0 10-3.47 10-7.75S17.523 3 12 3z"/>
+            <path d="M12 3c-5.523 0-10 3.47-10 7.75 0 2.73 1.88 5.13 4.68 6.47-.15.48-.48 1.68-.55 1.95-.09.33.12.33.26.24.11-.08 1.73-1.15 2.45-1.65 1.01.29 2.07.44 3.16.44 5.523 0 10-3.47 10-7.75S17.523 3 12 3z" />
           </svg>
           카카오 로그인
         </button>
@@ -605,10 +610,10 @@ export default function App() {
 
   if (userData && !userData.forest_id) {
     return (
-      <RegistrationView 
-        forests={mergedForests} 
-        onComplete={handleCompleteRegistration} 
-        user={user} 
+      <RegistrationView
+        forests={mergedForests}
+        onComplete={handleCompleteRegistration}
+        user={user}
       />
     );
   }
@@ -621,7 +626,7 @@ export default function App() {
   };
 
   const renderBottomNav = () => {
-    if (subPage) return null; 
+    if (subPage) return null;
     return (
       <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto w-full flex justify-between items-center px-2 pb-6 pt-3 bg-[#f7f6f3]/80 backdrop-blur-2xl z-50 shadow-[0px_-10px_40px_rgba(0,0,0,0.04)] rounded-t-[3rem]">
         <BottomNavItem icon={<Home size={22} className={activeTab === 'home' ? 'fill-current' : ''} />} label="홈" id="home" activeTab={activeTab} onClick={setActiveTab} />
@@ -634,6 +639,9 @@ export default function App() {
     );
   };
 
+  const hasUnreadNotifications = !!(user && userData && notifications.length > 0 &&
+    (!userData.lastCheckedNotificationAt || notifications[0].createdAt > userData.lastCheckedNotificationAt));
+
   return (
     <div className={`bg-surface font-body selection:bg-primary/20 min-h-screen ${!subPage ? 'pb-32' : 'h-screen overflow-hidden'}`}>
       {!subPage && (
@@ -641,12 +649,12 @@ export default function App() {
           <div className="flex items-center gap-3 active:scale-95 duration-200 cursor-pointer">
             <Menu className="text-primary-dim w-6 h-6" />
             <span className="font-headline font-bold text-lg tracking-tight text-primary-dim">
-              {activeTab === 'home' ? 'FOREST 3040' : 
-               activeTab === 'members' ? '삼성/사성이' : 
-               activeTab === 'program' ? '프로그램' : 
-               activeTab === 'worship' ? '온라인 주보' : 
-               activeTab === 'calendar' ? '일정' : 
-               activeTab === 'kids' ? '키즈돌봄' : 'FOREST 3040'}
+              {activeTab === 'home' ? 'FOREST 3040' :
+                activeTab === 'members' ? '삼성/사성이' :
+                  activeTab === 'program' ? '프로그램' :
+                    activeTab === 'worship' ? '온라인 주보' :
+                      activeTab === 'calendar' ? '일정' :
+                        activeTab === 'kids' ? '키즈돌봄' : 'FOREST 3040'}
             </span>
           </div>
           <div className="flex items-center gap-4">
@@ -655,8 +663,19 @@ export default function App() {
                 <Settings className="text-stone-600 hover:opacity-80 transition-opacity w-6 h-6" />
               </div>
             )}
-            <div className="flex items-center gap-2 active:scale-95 duration-200 cursor-pointer">
+            <div 
+              className="flex items-center gap-2 active:scale-95 duration-200 cursor-pointer relative"
+              onClick={() => {
+                setIsNotificationModalOpen(true);
+                if (user && hasUnreadNotifications) {
+                  updateDoc(doc(firestoreDb, 'users', user.uid), { lastCheckedNotificationAt: new Date().toISOString() });
+                }
+              }}
+            >
               <Bell className="text-stone-600 hover:opacity-80 transition-opacity w-6 h-6" />
+              {hasUnreadNotifications && (
+                <span className="absolute top-0 -right-0.5 w-[10px] h-[10px] bg-red-500 border-2 border-surface rounded-full shadow-sm animate-pulse"></span>
+              )}
             </div>
             <div className="flex items-center gap-2 active:scale-95 duration-200 cursor-pointer" onClick={() => setSubPage('mypage')}>
               <User className="text-stone-600 hover:opacity-80 transition-opacity w-6 h-6" />
@@ -667,26 +686,26 @@ export default function App() {
 
       <main className="max-w-md mx-auto">
         {subPage === 'mypage' && (
-          <MyPageView 
-            user={currentUser} 
-            forests={forests} 
-            attendance={attendance} 
-            onBack={() => setSubPage(null)} 
-            onShowToast={showToast} 
+          <MyPageView
+            user={currentUser}
+            forests={forests}
+            attendance={attendance}
+            onBack={() => setSubPage(null)}
+            onShowToast={showToast}
             onLogout={handleLogout}
             onNavigateToAdmin={handleNavigateToAdmin}
           />
         )}
         {subPage === 'pastoral_stats' && (
-          <PastoralStatsDashboardView 
-            user={currentUser} 
-            users={users.length>0 ? users : mockDb.users} 
-            forests={mergedForests} 
-            attendance={attendance} 
-            pastoralRecords={pastoralRecords} 
+          <PastoralStatsDashboardView
+            user={currentUser}
+            users={users.length > 0 ? users : mockDb.users}
+            forests={mergedForests}
+            attendance={attendance}
+            pastoralRecords={pastoralRecords}
             weeklySettlements={weeklySettlements}
-            onBack={() => setSubPage(null)} 
-            onShowToast={showToast} 
+            onBack={() => setSubPage(null)}
+            onShowToast={showToast}
           />
         )}
         {subPage === 'forest_board' && <ForestBoardView user={currentUser} forestId={selectedForestId} forests={forests} users={users} forestPosts={forestPosts} onBack={() => setSubPage(null)} />}
@@ -696,71 +715,78 @@ export default function App() {
         {subPage === 'program_detail' && <ProgramDetailView user={currentUser} programId={selectedProgramId} programs={programs} onBack={() => setSubPage(null)} onShowToast={showToast} />}
         {subPage === 'attendance' && <AttendanceView user={currentUser} attendance={attendance} onBack={() => setSubPage(null)} onShowToast={showToast} />}
         {subPage === 'survey' && (
-          <SurveyView 
+          <SurveyView
             user={currentUser}
             surveys={surveys}
-            onBack={() => setSubPage(null)} 
-            onShowToast={showToast} 
+            onBack={() => setSubPage(null)}
+            onShowToast={showToast}
             onVote={handleVote}
           />
         )}
         {subPage === 'finance' && (
-          <FinanceView 
+          <FinanceView
             user={currentUser}
             fees={fees}
+            onBack={() => setSubPage(null)}
+            onShowToast={showToast}
+          />
+        )}
+        {subPage === 'minutes' && (
+          <MinutesView 
+            user={currentUser} 
+            userData={userData} 
             onBack={() => setSubPage(null)} 
             onShowToast={showToast} 
           />
         )}
-        {subPage === 'minutes' && <MinutesView onBack={() => setSubPage(null)} onShowToast={showToast} />}
         {subPage === 'admin' && (
-          <AdminDashboardView 
-            onBack={() => setSubPage(null)} 
+          <AdminDashboardView
+            onBack={() => setSubPage(null)}
             onNavigateToUsers={() => setSubPage('admin_users')}
             onNavigateToBoards={() => setSubPage('admin_boards')}
             onNavigateToSurveys={() => setSubPage('admin_surveys')}
             onNavigateToFinance={() => setSubPage('admin_finance')}
-            onShowToast={showToast} 
+            onShowToast={showToast}
           />
         )}
         {subPage === 'admin_users' && (
-          <AdminUserManagementView 
-            users={users} 
-            onBack={() => setSubPage('admin')} 
-            onShowToast={showToast} 
+          <AdminUserManagementView
+            users={users}
+            onBack={() => setSubPage('admin')}
+            onShowToast={showToast}
           />
         )}
         {subPage === 'admin_boards' && (
-          <AdminBoardManagementView 
+          <AdminBoardManagementView
             forestPosts={forestPosts}
-            onBack={() => setSubPage('admin')} 
-            onShowToast={showToast} 
+            onBack={() => setSubPage('admin')}
+            onShowToast={showToast}
           />
         )}
         {subPage === 'admin_surveys' && (
-          <AdminSurveyManagementView 
+          <AdminSurveyManagementView
             surveys={surveys}
-            onBack={() => setSubPage('admin')} 
-            onShowToast={showToast} 
+            onBack={() => setSubPage('admin')}
+            onShowToast={showToast}
           />
         )}
         {subPage === 'admin_finance' && (
-          <AdminFinanceManagementView 
+          <AdminFinanceManagementView
             users={users}
             fees={fees}
-            onBack={() => setSubPage('admin')} 
-            onShowToast={showToast} 
+            onBack={() => setSubPage('admin')}
+            onShowToast={showToast}
           />
         )}
-        
+
         {!subPage && activeTab === 'home' && (
           <div className="pt-6 px-6 space-y-10">
-            <HomeView 
+            <HomeView
               kidsCares={kidsCares}
-              user={currentUser} 
+              user={currentUser}
               users={users.length > 0 ? users : mockDb.users}
               forests={mergedForests}
-              schedules={schedules.length > 0 ? schedules : mockDb.schedules} 
+              schedules={schedules.length > 0 ? schedules : mockDb.schedules}
               surveys={surveys}
               attendance={attendance}
               onNavigateToMyForestBoard={handleNavigateToMyForestBoard}
@@ -771,11 +797,11 @@ export default function App() {
         )}
         {!subPage && activeTab === 'members' && (
           <div className="pt-6 px-6 space-y-10">
-            <MembersView 
-              user={currentUser} 
-              users={users.length>0 ? users : mockDb.users}
+            <MembersView
+              user={currentUser}
+              users={users.length > 0 ? users : mockDb.users}
               forests={mergedForests}
-              onOpenBoard={(fId: string) => { setSelectedForestId(fId); setSubPage('forest_community'); }} 
+              onOpenBoard={(fId: string) => { setSelectedForestId(fId); setSubPage('forest_community'); }}
               onShowToast={showToast}
               onNavigateToStats={() => setSubPage('pastoral_stats')}
               onMemberClick={(u: any) => {
@@ -790,46 +816,46 @@ export default function App() {
           </div>
         )}
         {!subPage && activeTab === 'program' && (
-          <ProgramView 
+          <ProgramView
             user={currentUser}
-            programs={programs} 
-            onNavigateToDetail={(id: string) => { setSelectedProgramId(id); setSubPage('program_detail'); }} 
+            programs={programs}
+            onNavigateToDetail={(id: string) => { setSelectedProgramId(id); setSubPage('program_detail'); }}
             onNavigateToAdd={() => setSubPage('program_add')}
-            onShowToast={showToast} 
+            onShowToast={showToast}
           />
         )}
         {subPage === 'program_add' && (
-          <ProgramAddView 
-            onBack={() => setSubPage(null)} 
-            onShowToast={showToast} 
+          <ProgramAddView
+            onBack={() => setSubPage(null)}
+            onShowToast={showToast}
           />
         )}
         {!subPage && activeTab === 'worship' && (
-          <WorshipView 
-            user={currentUser} 
-            worships={worships} 
+          <WorshipView
+            user={currentUser}
+            worships={worships}
             onNavigateToDetail={(id: string) => { setSelectedWorshipId(id); setSubPage('worship_detail'); }}
             onNavigateToAdd={() => setSubPage('worship_add')}
-            onShowToast={showToast} 
+            onShowToast={showToast}
           />
         )}
         {subPage === 'worship_add' && (
-          <WorshipAddView 
-            onBack={() => setSubPage(null)} 
-            onShowToast={showToast} 
+          <WorshipAddView
+            onBack={() => setSubPage(null)}
+            onShowToast={showToast}
           />
         )}
         {subPage === 'worship_detail' && (
-          <WorshipDetailView 
+          <WorshipDetailView
             worshipId={selectedWorshipId}
             worships={worships}
-            onBack={() => setSubPage(null)} 
+            onBack={() => setSubPage(null)}
           />
         )}
         {subPage === 'kids_care_add' && (
-          <KidsCareAddView 
-            onBack={() => setSubPage(null)} 
-            onShowToast={showToast} 
+          <KidsCareAddView
+            onBack={() => setSubPage(null)}
+            onShowToast={showToast}
             forests={mergedForests}
           />
         )}
@@ -843,34 +869,34 @@ export default function App() {
           />
         )}
         {subPage === 'kids_care_detail' && (
-          <KidsCareDetailView 
+          <KidsCareDetailView
             kidsCareId={selectedKidsCareId}
             kidsCares={kidsCares}
             user={currentUser}
-            onBack={() => setSubPage(null)} 
+            onBack={() => setSubPage(null)}
             onShowToast={showToast}
             onNavigateToApply={() => setSubPage('kids_care_apply')}
           />
         )}
         {subPage === 'kids_care_admin' && (
-          <KidsCareAdminView 
+          <KidsCareAdminView
             kidsCareId={selectedKidsCareId}
             kidsCares={kidsCares}
             user={currentUser}
-            onBack={() => setSubPage(null)} 
+            onBack={() => setSubPage(null)}
             onShowToast={showToast}
           />
         )}
         {!subPage && activeTab === 'calendar' && <CalendarView user={currentUser} schedules={schedules.length > 0 ? schedules : mockDb.schedules} onShowToast={showToast} />}
         {!subPage && activeTab === 'kids' && (
-          <KidsView 
-            user={currentUser} 
+          <KidsView
+            user={currentUser}
             kidsCares={kidsCares}
             forests={mergedForests}
             onNavigateToAdd={() => setSubPage('kids_care_add')}
             onNavigateToDetail={(id: string) => { setSelectedKidsCareId(id); setSubPage('kids_care_detail'); }}
             onNavigateToAdmin={(id: string) => { setSelectedKidsCareId(id); setSubPage('kids_care_admin'); }}
-            onShowToast={showToast} 
+            onShowToast={showToast}
           />
         )}
       </main>
@@ -900,13 +926,13 @@ export default function App() {
               브라우저의 팝업 차단 기능으로 인해 로그인 창을 열 수 없습니다. 페이지 이동 방식으로 로그인을 진행하시겠습니까?
             </p>
             <div className="space-y-3">
-              <button 
+              <button
                 onClick={() => { handleKakaoRedirectLogin(); setShowRedirectLoginModal(false); }}
                 className="w-full py-4 bg-primary text-on-primary rounded-2xl font-bold shadow-lg shadow-primary/20 active:scale-95 transition-all"
               >
                 페이지 이동으로 로그인
               </button>
-              <button 
+              <button
                 onClick={() => setShowRedirectLoginModal(false)}
                 className="w-full py-4 bg-surface-container-high text-on-surface rounded-2xl font-bold active:scale-95 transition-all"
               >
@@ -916,6 +942,12 @@ export default function App() {
           </div>
         </div>
       )}
+
+      <NotificationModal
+        isOpen={isNotificationModalOpen}
+        onClose={() => setIsNotificationModalOpen(false)}
+        notifications={notifications}
+      />
     </div>
   );
 }
@@ -923,8 +955,10 @@ export default function App() {
 // ==========================================
 // 3. Sub Views
 // ==========================================
-
-
+
+
+
+
 
 const ForestBoardView = ({ user, forestId, forests, users, forestPosts, onBack }: any) => {
   const forest = forests.find((f: any) => f.forest_id === forestId);
@@ -938,7 +972,7 @@ const ForestBoardView = ({ user, forestId, forests, users, forestPosts, onBack }
 
   const handleSend = async () => {
     if (!newPost.trim()) return;
-    
+
     try {
       const newPostObj = {
         forest_id: forestId,
@@ -948,7 +982,7 @@ const ForestBoardView = ({ user, forestId, forests, users, forestPosts, onBack }
         date: Timestamp.now(),
         comments: 0
       };
-      
+
       await addDoc(collection(firestoreDb, 'forest_posts'), newPostObj);
       setNewPost('');
     } catch (err) {
@@ -992,10 +1026,10 @@ const ForestBoardView = ({ user, forestId, forests, users, forestPosts, onBack }
             <div className="w-16 h-16 bg-surface-container rounded-full flex items-center justify-center mx-auto mb-4">
               <MessageSquare size={28} className="text-outline" />
             </div>
-            <p className="text-on-surface-variant text-sm font-body">아직 작성된 글이 없습니다.<br/>우리 숲의 첫 번째 이야기를 남겨보세요!</p>
+            <p className="text-on-surface-variant text-sm font-body">아직 작성된 글이 없습니다.<br />우리 숲의 첫 번째 이야기를 남겨보세요!</p>
           </div>
         )}
-        
+
         {posts.map(post => (
           <div key={post.id} className="bg-surface-container-lowest p-5 squircle shadow-sm">
             <div className="flex items-center justify-between mb-3">
@@ -1008,8 +1042,8 @@ const ForestBoardView = ({ user, forestId, forests, users, forestPosts, onBack }
                     {post.author_name} {post.author_uid === forest?.leader_uid ? '👑' : ''}
                   </p>
                   <p className="text-[11px] text-on-surface-variant">
-                    {post.date?.toDate ? post.date.toDate().toLocaleString() : 
-                     (post.date?.seconds ? new Date(post.date.seconds * 1000).toLocaleString() : String(post.date || ''))}
+                    {post.date?.toDate ? post.date.toDate().toLocaleString() :
+                      (post.date?.seconds ? new Date(post.date.seconds * 1000).toLocaleString() : String(post.date || ''))}
                   </p>
                 </div>
               </div>
@@ -1053,7 +1087,7 @@ const AdminDashboardView = ({ onBack, onNavigateToUsers, onNavigateToBoards, onN
           <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">관리자 대시보드</h1>
         </div>
       </header>
-      
+
       <div className="p-6 space-y-6">
         <div className="bg-primary-container/30 p-6 rounded-3xl border border-primary-container/50">
           <div className="flex items-center gap-4 mb-2">
@@ -1067,7 +1101,7 @@ const AdminDashboardView = ({ onBack, onNavigateToUsers, onNavigateToBoards, onN
 
         <div className="grid gap-4">
           {adminMenus.map(menu => (
-            <button 
+            <button
               key={menu.id}
               onClick={menu.onClick}
               className="flex items-center gap-4 p-5 bg-surface-container-lowest rounded-3xl border border-surface-container-low shadow-sm hover:border-primary transition-all text-left group active:scale-95"
@@ -1132,12 +1166,12 @@ const AdminBoardManagementView = ({ forestPosts, onBack, onShowToast }: any) => 
                   <div>
                     <p className="text-sm font-bold text-on-surface">{post.author_name}</p>
                     <p className="text-[10px] text-on-surface-variant">
-                      {post.date?.toDate ? post.date.toDate().toLocaleString() : 
-                       (post.date?.seconds ? new Date(post.date.seconds * 1000).toLocaleString() : String(post.date || ''))}
+                      {post.date?.toDate ? post.date.toDate().toLocaleString() :
+                        (post.date?.seconds ? new Date(post.date.seconds * 1000).toLocaleString() : String(post.date || ''))}
                     </p>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => setConfirmDeleteId(post.id)}
                   className="p-2 text-error hover:bg-error/10 rounded-full transition-colors"
                 >
@@ -1164,16 +1198,16 @@ const AdminBoardManagementView = ({ forestPosts, onBack, onShowToast }: any) => 
             </div>
             <div>
               <h3 className="text-xl font-headline font-extrabold text-on-surface">게시글 삭제</h3>
-              <p className="text-sm text-on-surface-variant mt-2">정말로 이 게시글을 삭제하시겠습니까?<br/>삭제된 글은 복구할 수 없습니다.</p>
+              <p className="text-sm text-on-surface-variant mt-2">정말로 이 게시글을 삭제하시겠습니까?<br />삭제된 글은 복구할 수 없습니다.</p>
             </div>
             <div className="flex flex-col gap-2">
-              <button 
+              <button
                 onClick={() => handleDeletePost(confirmDeleteId)}
                 className="w-full py-4 bg-error text-white rounded-2xl font-bold active:scale-95 transition-transform"
               >
                 삭제하기
               </button>
-              <button 
+              <button
                 onClick={() => setConfirmDeleteId(null)}
                 className="w-full py-4 bg-surface-container-high text-on-surface rounded-2xl font-bold active:scale-95 transition-transform"
               >
@@ -1234,14 +1268,14 @@ const AdminSurveyManagementView = ({ surveys, onBack, onShowToast }: any) => {
                   <p className="text-xs text-on-surface-variant mt-1">{survey.description}</p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button 
+                  <button
                     onClick={() => handleToggleStatus(survey.id, survey.status)}
                     className={`p-2 rounded-full transition-colors ${survey.status === 'active' ? 'text-primary hover:bg-primary/10' : 'text-outline hover:bg-surface-container'}`}
                     title={survey.status === 'active' ? '마감하기' : '시작하기'}
                   >
                     {survey.status === 'active' ? <CheckCircle2 size={18} /> : <Play size={18} />}
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleDeleteSurvey(survey.id)}
                     className="p-2 text-error hover:bg-error/10 rounded-full transition-colors"
                     title="삭제하기"
@@ -1250,7 +1284,7 @@ const AdminSurveyManagementView = ({ surveys, onBack, onShowToast }: any) => {
                   </button>
                 </div>
               </div>
-              
+
               <div className="pt-2 border-t border-surface-container flex items-center justify-between text-[10px] font-bold">
                 <span className={`px-2 py-0.5 rounded-full ${survey.status === 'active' ? 'bg-primary/10 text-primary' : 'bg-surface-container-high text-on-surface-variant'}`}>
                   {survey.status === 'active' ? '진행중' : '마감됨'}
@@ -1273,7 +1307,7 @@ const AdminFinanceManagementView = ({ users, fees, onBack, onShowToast }: any) =
 
   const handleToggleFeeStatus = async (user: any) => {
     const existingFee = fees.find((f: any) => f.uid === user.uid && f.year === selectedYear && f.month === selectedMonth);
-    
+
     try {
       if (existingFee) {
         await updateDoc(doc(firestoreDb, 'fees', existingFee.id), {
@@ -1312,8 +1346,8 @@ const AdminFinanceManagementView = ({ users, fees, onBack, onShowToast }: any) =
         <div className="flex items-center gap-4 bg-surface-container-lowest p-4 rounded-2xl border border-surface-container-low shadow-sm">
           <div className="flex-1">
             <label className="block text-[10px] font-bold text-outline uppercase mb-1">연도</label>
-            <select 
-              value={selectedYear} 
+            <select
+              value={selectedYear}
               onChange={(e) => setSelectedYear(Number(e.target.value))}
               className="w-full bg-transparent font-bold text-on-surface outline-none"
             >
@@ -1323,12 +1357,12 @@ const AdminFinanceManagementView = ({ users, fees, onBack, onShowToast }: any) =
           <div className="w-px h-8 bg-surface-container-high"></div>
           <div className="flex-1">
             <label className="block text-[10px] font-bold text-outline uppercase mb-1">월</label>
-            <select 
-              value={selectedMonth} 
+            <select
+              value={selectedMonth}
               onChange={(e) => setSelectedMonth(Number(e.target.value))}
               className="w-full bg-transparent font-bold text-on-surface outline-none"
             >
-              {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => <option key={m} value={m}>{m}월</option>)}
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(m => <option key={m} value={m}>{m}월</option>)}
             </select>
           </div>
         </div>
@@ -1338,7 +1372,7 @@ const AdminFinanceManagementView = ({ users, fees, onBack, onShowToast }: any) =
           {users.map((u: any) => {
             const fee = fees.find((f: any) => f.uid === u.uid && f.year === selectedYear && f.month === selectedMonth);
             const isPaid = fee?.status === 'paid';
-            
+
             return (
               <div key={u.uid} className="bg-surface-container-lowest p-4 rounded-2xl flex items-center justify-between border border-surface-container-low shadow-sm">
                 <div className="flex items-center gap-3">
@@ -1350,13 +1384,12 @@ const AdminFinanceManagementView = ({ users, fees, onBack, onShowToast }: any) =
                     <p className="text-[10px] text-on-surface-variant">{u.forest_id || '소속 없음'}</p>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => handleToggleFeeStatus(u)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                    isPaid 
-                      ? 'bg-emerald-500 text-white shadow-sm' 
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${isPaid
+                      ? 'bg-emerald-500 text-white shadow-sm'
                       : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'
-                  }`}
+                    }`}
                 >
                   {isPaid ? '납부완료' : '미납'}
                 </button>
@@ -1368,8 +1401,10 @@ const AdminFinanceManagementView = ({ users, fees, onBack, onShowToast }: any) =
     </div>
   );
 };
-
-
+
+
+
+
 
 function RegistrationView({ forests, onComplete, user }: any) {
   const [birthdate, setBirthdate] = useState('');
@@ -1402,16 +1437,16 @@ function RegistrationView({ forests, onComplete, user }: any) {
           <TreePine size={32} className="text-primary" />
         </div>
         <h1 className="text-2xl font-bold font-headline text-on-surface mb-2 tracking-tight">환영합니다!</h1>
-        <p className="text-on-surface-variant text-sm leading-relaxed">원활한 소통을 위해 처음 한 번만<br/>가입 정보를 입력해 주세요.</p>
+        <p className="text-on-surface-variant text-sm leading-relaxed">원활한 소통을 위해 처음 한 번만<br />가입 정보를 입력해 주세요.</p>
       </div>
 
       <div className="space-y-8 flex-1 pb-8">
         <div className="space-y-3">
           <label className="block text-sm font-bold text-on-surface">생년월일</label>
-          <input 
-            type="date" 
-            value={birthdate} 
-            onChange={e => setBirthdate(e.target.value)} 
+          <input
+            type="date"
+            value={birthdate}
+            onChange={e => setBirthdate(e.target.value)}
             className="w-full bg-surface-container-lowest border border-outline-variant rounded-2xl p-4 text-on-surface font-medium outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all shadow-sm"
           />
         </div>
@@ -1431,10 +1466,10 @@ function RegistrationView({ forests, onComplete, user }: any) {
             <button onClick={() => { setHasKids(false); setKidsInfo(''); }} className={`p-4 rounded-2xl border font-bold transition-all shadow-sm ${hasKids === false ? 'bg-primary/10 border-primary text-primary' : 'bg-surface-container-lowest border-outline-variant text-on-surface-variant hover:bg-surface-container-low'}`}>없음</button>
           </div>
           {hasKids && (
-            <input 
-              type="text" 
-              placeholder="예: 7세 남, 5세 여" 
-              value={kidsInfo} 
+            <input
+              type="text"
+              placeholder="예: 7세 남, 5세 여"
+              value={kidsInfo}
               onChange={e => setKidsInfo(e.target.value)}
               className="mt-3 w-full bg-surface-container-lowest border border-outline-variant rounded-2xl p-4 text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all shadow-sm"
             />
@@ -1471,7 +1506,7 @@ function RegistrationView({ forests, onComplete, user }: any) {
       </div>
 
       <div className="mt-auto pt-4 pb-2 sticky bottom-0 bg-surface/90 backdrop-blur-md">
-        <button 
+        <button
           onClick={handleSubmit}
           disabled={!isFormValid}
           className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm ${isFormValid ? 'bg-primary text-on-primary shadow-lg active:scale-95' : 'bg-surface-container-highest text-outline cursor-not-allowed opacity-70'}`}
@@ -1538,7 +1573,7 @@ function BottomNavItem({ icon, label, id, activeTab, onClick }: any) {
 
 export const MemberRow = ({ member, forests, onClick }: any) => {
   const forestName = forests?.find((f: any) => f.forest_id === member.forest_id)?.name || '소속 없음';
-  
+
   const getMinistryBadge = (ministry: string) => {
     switch (ministry) {
       case '예배팀': return 'bg-purple-100 text-purple-700 border-purple-200';
@@ -1589,18 +1624,25 @@ export const MemberRow = ({ member, forests, onClick }: any) => {
     </div>
   );
 };
-
-
+
+
+
+
 
 
 
 // ==========================================
 // 5. Worship View (온라인 주보)
-// ==========================================
-
-
-
-
+// ==========================================
+
+
+
+
+
+
+
+
+
 
 const Toast = ({ message }: { message: string }) => {
   return (
@@ -1637,9 +1679,9 @@ const AttendanceView = ({ user, attendance, onBack, onShowToast }: any) => {
           <h2 className="text-xl font-bold text-on-surface mb-2">주일 예배 출석</h2>
           <p className="text-sm text-on-surface-variant mb-8">아래 QR 코드를 리더에게 보여주세요.</p>
           <div className="bg-white p-6 rounded-2xl shadow-inner border border-surface-container mb-6">
-            <img 
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${user.uid}`} 
-              alt="My Attendance QR Code" 
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${user.uid}`}
+              alt="My Attendance QR Code"
               className="w-48 h-48"
               referrerPolicy="no-referrer"
             />
@@ -1648,45 +1690,46 @@ const AttendanceView = ({ user, attendance, onBack, onShowToast }: any) => {
             현장에 비치된 QR 리더기에 위 코드를 인식시키면 자동으로 출석이 체크됩니다.
           </p>
         </div>
-      
-      <section className="space-y-4">
-        <h3 className="text-lg font-bold text-on-surface font-headline px-2">최근 출석 내역</h3>
-        <div className="space-y-3">
-          {userAttendance.length > 0 ? (
-            userAttendance.slice(0, 5).map((item: any) => (
-              <div key={item.id} className="bg-surface-container-lowest p-4 rounded-2xl flex items-center justify-between border border-surface-container-low">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center">
-                    <CheckCircle2 size={20} className="text-primary" />
+
+        <section className="space-y-4">
+          <h3 className="text-lg font-bold text-on-surface font-headline px-2">최근 출석 내역</h3>
+          <div className="space-y-3">
+            {userAttendance.length > 0 ? (
+              userAttendance.slice(0, 5).map((item: any) => (
+                <div key={item.id} className="bg-surface-container-lowest p-4 rounded-2xl flex items-center justify-between border border-surface-container-low">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center">
+                      <CheckCircle2 size={20} className="text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-on-surface text-sm">{item.type}</p>
+                      <p className="text-xs text-on-surface-variant">
+                        {item.date?.toDate ? item.date.toDate().toLocaleDateString() :
+                          (item.date?.seconds ? new Date(item.date.seconds * 1000).toLocaleDateString() : '날짜 정보 없음')}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-bold text-on-surface text-sm">{item.type}</p>
-                    <p className="text-xs text-on-surface-variant">
-                      {item.date?.toDate ? item.date.toDate().toLocaleDateString() : 
-                       (item.date?.seconds ? new Date(item.date.seconds * 1000).toLocaleDateString() : '날짜 정보 없음')}
-                    </p>
-                  </div>
+                  <span className="text-xs font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full">{item.status}</span>
                 </div>
-                <span className="text-xs font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full">{item.status}</span>
+              ))
+            ) : (
+              <div className="text-center py-10 text-on-surface-variant text-sm">
+                출석 내역이 없습니다.
               </div>
-            ))
-          ) : (
-            <div className="text-center py-10 text-on-surface-variant text-sm">
-              출석 내역이 없습니다.
-            </div>
-          )}
-        </div>
-      </section>
+            )}
+          </div>
+        </section>
+      </div>
     </div>
-  </div>
-);
+  );
 };
-
+
+
 
 const FinanceView = ({ user, fees, onBack, onShowToast }: any) => {
   const currentMonth = new Date().getMonth() + 1;
   const currentYear = new Date().getFullYear();
-  
+
   const userFees = fees.filter((f: any) => f.uid === user?.uid);
   const currentMonthFee = userFees.find((f: any) => f.year === currentYear && f.month === currentMonth);
   const totalPaidThisYear = userFees
@@ -1711,11 +1754,11 @@ const FinanceView = ({ user, fees, onBack, onShowToast }: any) => {
           <div className="absolute top-4 right-4 opacity-20">
             <Wallet size={80} strokeWidth={1.5} />
           </div>
-          
+
           <div className="relative z-10">
             <p className="text-sm font-medium opacity-90 mb-1">{currentYear}년 총 납부액</p>
             <h2 className="text-4xl font-extrabold font-headline tracking-tight mb-6">{totalPaidThisYear.toLocaleString()}원</h2>
-            
+
             <div className="bg-white/20 backdrop-blur-md rounded-2xl p-4 flex items-center justify-between">
               <span className="text-sm font-medium">{currentMonth}월 회비 납부 상태</span>
               {isPaid ? (
@@ -1737,7 +1780,7 @@ const FinanceView = ({ user, fees, onBack, onShowToast }: any) => {
           <div className="flex justify-between items-center px-2">
             <h3 className="text-xl font-bold text-on-surface font-headline">월별 납부 내역</h3>
           </div>
-          
+
           {userFees.length > 0 ? (
             <div className="space-y-3">
               {userFees.sort((a: any, b: any) => b.month - a.month).map((item: any, i: number) => (
@@ -1749,17 +1792,16 @@ const FinanceView = ({ user, fees, onBack, onShowToast }: any) => {
                     <div>
                       <p className="font-bold text-on-surface text-sm">{item.month}월 회비</p>
                       <p className="text-xs text-on-surface-variant mt-0.5">
-                        {item.paid_at?.toDate ? item.paid_at.toDate().toLocaleDateString() : 
-                         (item.paid_at?.seconds ? new Date(item.paid_at.seconds * 1000).toLocaleDateString() : 
-                          (item.status === 'paid' ? '납부 완료' : '납부 대기'))}
+                        {item.paid_at?.toDate ? item.paid_at.toDate().toLocaleDateString() :
+                          (item.paid_at?.seconds ? new Date(item.paid_at.seconds * 1000).toLocaleDateString() :
+                            (item.status === 'paid' ? '납부 완료' : '납부 대기'))}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
                     <span className="font-bold text-on-surface block">{item.amount.toLocaleString()} 원</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block ${
-                      item.status === 'paid' ? 'text-emerald-600 bg-emerald-50' : 'text-error bg-error/10'
-                    }`}>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block ${item.status === 'paid' ? 'text-emerald-600 bg-emerald-50' : 'text-error bg-error/10'
+                      }`}>
                       {item.status === 'paid' ? '완납' : '미납'}
                     </span>
                   </div>
@@ -1781,53 +1823,7 @@ const FinanceView = ({ user, fees, onBack, onShowToast }: any) => {
   );
 };
 
-const MinutesView = ({ onBack, onShowToast }: any) => (
-  <div className="absolute inset-0 bg-surface z-[60] flex flex-col min-h-screen overflow-y-auto pb-24">
-    <header className="sticky top-0 z-50 bg-surface/80 backdrop-blur-md border-b border-surface-container-highest">
-      <div className="flex items-center px-2 py-3">
-        <button onClick={onBack} className="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
-          <ChevronLeft size={24} />
-        </button>
-        <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">회의록</h1>
-      </div>
-    </header>
-    <div className="p-6 space-y-4">
-      <div className="relative mb-6">
-        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-          <Search className="text-outline" size={18} />
-        </div>
-        <input
-          type="text"
-          placeholder="회의록 검색..."
-          className="w-full pl-11 pr-4 py-3 bg-surface-container-lowest rounded-xl shadow-sm border border-surface-container-low focus:ring-2 focus:ring-primary/30 transition-all text-sm outline-none"
-        />
-      </div>
 
-      <div className="space-y-3">
-        {[
-          { title: '3월 정기 임원 회의록', date: '2026. 03. 15', category: '임원회' },
-          { title: '여름 수련회 기획팀 1차 회의', date: '2026. 03. 10', category: '기획팀' },
-          { title: '2월 결산 및 사역 보고', date: '2026. 02. 28', category: '전체' },
-          { title: '새가족 환영회 준비 모임', date: '2026. 02. 15', category: '새가족팀' },
-        ].map((item, i) => (
-          <div key={i} onClick={() => onShowToast('문서를 엽니다.')} className="bg-surface-container-lowest p-4 rounded-2xl flex items-center gap-4 border border-surface-container-low hover:bg-surface-container-low transition-colors cursor-pointer group">
-            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-              <FileText size={24} className="text-blue-600" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="bg-surface-container-high text-on-surface-variant text-[10px] font-bold px-2 py-0.5 rounded-md">{item.category}</span>
-                <span className="text-xs text-on-surface-variant">{item.date}</span>
-              </div>
-              <h3 className="text-sm font-bold text-on-surface group-hover:text-primary transition-colors">{item.title}</h3>
-            </div>
-            <ChevronRight size={18} className="text-surface-container-highest group-hover:text-primary transition-colors" />
-          </div>
-        ))}
-      </div>
-    </div>
-  </div>
-);
 
 export const VISIT_CATEGORIES = [
   { id: 'spiritual', label: '영적 돌봄', icon: '✝️', color: 'bg-purple-50 text-purple-600 border-purple-100' },
@@ -1861,11 +1857,11 @@ const PastoralCardModal = ({ targetUser, pastoralRecords, onClose, currentUser, 
     if (!newLog) return;
     try {
       await addDoc(collection(firestoreDb, 'pastoral_records'), {
-        target_uid: targetUser.uid || '', 
+        target_uid: targetUser.uid || '',
         author_uid: currentUser?.uid || '',
-        forest_id: targetUser.forest_id || '', 
+        forest_id: targetUser.forest_id || '',
         type: logType || 'meetup',
-        category: logCategory || 'spiritual', 
+        category: logCategory || 'spiritual',
         content: newLog,
         is_sensitive: isSensitive || false,
         date: new Date().toISOString().split('T')[0],
@@ -1880,12 +1876,12 @@ const PastoralCardModal = ({ targetUser, pastoralRecords, onClose, currentUser, 
     if (!newPrayer) return;
     try {
       await addDoc(collection(firestoreDb, 'pastoral_records'), {
-        target_uid: targetUser.uid || '', 
+        target_uid: targetUser.uid || '',
         author_uid: currentUser?.uid || '',
-        forest_id: targetUser.forest_id || '', 
+        forest_id: targetUser.forest_id || '',
         type: 'prayer',
-        content: newPrayer, 
-        is_sensitive: false, 
+        content: newPrayer,
+        is_sensitive: false,
         status: 'active',
         createdAt: Timestamp.now()
       });
@@ -1967,7 +1963,7 @@ const PastoralCardModal = ({ targetUser, pastoralRecords, onClose, currentUser, 
           </h3>
           <div className="flex gap-2">
             <input type="text" value={newPrayer} onChange={e => setNewPrayer(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddPrayer()} placeholder="새 기도제목 입력..." className="flex-1 bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary" />
-            <button onClick={handleAddPrayer} className="bg-primary text-on-primary px-4 rounded-xl font-bold active:scale-95 transition-transform"><Plus size={20}/></button>
+            <button onClick={handleAddPrayer} className="bg-primary text-on-primary px-4 rounded-xl font-bold active:scale-95 transition-transform"><Plus size={20} /></button>
           </div>
           <div className="space-y-2 mt-2">
             {prayerRequests.map((p: any) => (
