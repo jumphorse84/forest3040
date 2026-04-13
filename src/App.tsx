@@ -1671,12 +1671,12 @@ function RegistrationView({ forests, onComplete, user }: any) {
 
   const displayForests = forests;
 
-  const isFormValid = birthdate && gender && hasKids !== null && (hasKids ? kidsInfo.trim() !== '' : true) && selectedForest && privacyAgreed;
+  const isFormValid = birthdate && birthdate.length === 8 && gender && hasKids !== null && (hasKids ? kidsInfo.trim() !== '' : true) && selectedForest && privacyAgreed;
 
   const handleSubmit = () => {
     if (!isFormValid) return;
     onComplete({
-      birthdate,
+      birthdate: `${birthdate.slice(0, 4)}-${birthdate.slice(4, 6)}-${birthdate.slice(6, 8)}`,
       gender,
       has_kids: hasKids,
       kids_info: hasKids ? kidsInfo : '',
@@ -1699,9 +1699,16 @@ function RegistrationView({ forests, onComplete, user }: any) {
         <div className="space-y-3">
           <label className="block text-sm font-bold text-on-surface">생년월일</label>
           <input
-            type="date"
+            type="text"
+            inputMode="numeric"
+            pattern="\d*"
+            maxLength={8}
+            placeholder="예: 19900101 (8자리 숫자)"
             value={birthdate}
-            onChange={e => setBirthdate(e.target.value)}
+            onChange={e => {
+              const val = e.target.value.replace(/\D/g, '');
+              if (val.length <= 8) setBirthdate(val);
+            }}
             className="w-full bg-surface-container-lowest border border-outline-variant rounded-2xl p-4 text-on-surface font-medium outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all shadow-sm"
           />
         </div>
@@ -1736,12 +1743,12 @@ function RegistrationView({ forests, onComplete, user }: any) {
           <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto p-1 scrollbar-hide">
             {displayForests.map((forest: any) => (
               <button
-                key={forest.id}
-                onClick={() => setSelectedForest(forest.id)}
-                className={`flex flex-col items-center justify-center py-4 px-2 border rounded-2xl transition-all shadow-sm ${selectedForest === forest.id ? 'bg-primary text-on-primary border-primary shadow-md' : 'bg-surface-container-lowest border-outline-variant text-on-surface hover:bg-surface-container-low'}`}
+                key={forest.forest_id}
+                onClick={() => setSelectedForest(forest.forest_id)}
+                className={`flex flex-col items-center justify-center py-4 px-2 border rounded-2xl transition-all shadow-sm ${selectedForest === forest.forest_id ? 'bg-primary text-on-primary border-primary shadow-md' : 'bg-surface-container-lowest border-outline-variant text-on-surface hover:bg-surface-container-low'}`}
               >
                 <span className="font-bold">{forest.name}</span>
-                {forest.leader && <span className={`text-xs mt-1 ${selectedForest === forest.id ? 'opacity-90' : 'text-on-surface-variant'}`}>{forest.leader} 리더</span>}
+                {forest.leader && <span className={`text-xs mt-1 ${selectedForest === forest.forest_id ? 'opacity-90' : 'text-on-surface-variant'}`}>{forest.leader} 리더</span>}
               </button>
             ))}
           </div>
