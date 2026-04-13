@@ -8,7 +8,8 @@ import {
 import { collection, doc, setDoc, addDoc, getDoc, onSnapshot, query, where, orderBy, getDocFromServer, Timestamp, updateDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db as firestoreDb, auth, storage } from '../firebase';
-import { VISIT_CATEGORIES, MenuButton, ScheduleItem, MemberRow, OperationType, handleFirestoreError } from '../App';
+import { MenuButton, ScheduleItem, MemberRow, OperationType, handleFirestoreError } from '../App';
+import { VISIT_CATEGORIES } from '../components/PastoralCardModal';
 
 const MembersView = ({ user, users, forests, onOpenBoard, onShowToast, onMemberClick, onNavigateToStats }: any) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -305,8 +306,9 @@ const ForestBoardView = ({ user, forestId, forests, users, forestPosts, onBack }
   );
 };
 
-const AdminDashboardView = ({ onBack, onNavigateToUsers, onNavigateToBoards, onNavigateToSurveys, onNavigateToFinance, onShowToast }: any) => {
+const AdminDashboardView = ({ onBack, onNavigateToUsers, onNavigateToBoards, onNavigateToSurveys, onNavigateToFinance, onNavigateToScanner, onShowToast }: any) => {
   const adminMenus = [
+    { id: 'scanner', label: 'QR 출석 스캐너', icon: <QrCode size={24} />, onClick: onNavigateToScanner, desc: '교인의 QR을 스캔하여 출석을 기록합니다.' },
     { id: 'users', label: '회원 권한 관리', icon: <Users size={24} />, onClick: onNavigateToUsers, desc: '사용자별 메뉴 접근 권한을 설정합니다.' },
     { id: 'boards', label: '게시판 관리', icon: <MessageSquare size={24} />, onClick: onNavigateToBoards, desc: '숲별 게시판의 게시글을 관리합니다.' },
     { id: 'surveys', label: '설문조사 관리', icon: <ClipboardList size={24} />, onClick: onNavigateToSurveys, desc: '진행 중인 설문조사를 관리합니다.' },

@@ -1,4 +1,5 @@
 import { TicketModal } from '../components/TicketModal';
+import { FruitStatusModal } from '../components/FruitStatusModal';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Menu, Bell, User, Flame, QrCode, Users, ClipboardList, Wallet, FileText,
@@ -18,17 +19,22 @@ const BIBLE_VERSES = [
 import { collection, doc, setDoc, addDoc, getDoc, onSnapshot, query, where, orderBy, getDocFromServer, Timestamp, updateDoc, deleteDoc, arrayUnion, arrayRemove, limit } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db as firestoreDb, auth, storage } from '../firebase';
-import { VISIT_CATEGORIES, MenuButton, ScheduleItem, MemberRow, OperationType, handleFirestoreError } from '../App';
+import { MenuButton, ScheduleItem, MemberRow, OperationType, handleFirestoreError } from '../App';
+import { VISIT_CATEGORIES } from '../components/PastoralCardModal';
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
 import { FamilyNewsEditorModal } from '../components/FamilyNewsEditorModal';
 
-const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], users = [], forests = [], onNavigateToMyForestBoard, onNavigate, onNavigateToKidsDetail }: any) => {
+const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares = [], users = [], forests = [], onNavigateToMyForestBoard, onNavigate, onNavigateToKidsDetail }: any) => {
 
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+  const [isFruitModalOpen, setIsFruitModalOpen] = useState(false);
   const [familyNews, setFamilyNews] = useState<any[]>([]);
   const [isFamilyNewsModalOpen, setIsFamilyNewsModalOpen] = useState(false);
   const [editingFamilyNews, setEditingFamilyNews] = useState<any>(null);
+
+  const [showDutyAlert, setShowDutyAlert] = useState(false);
+  const [showFeeAlert, setShowFeeAlert] = useState(false);
 
   const handleToggleLike = async (newsId: string, currentLikes: string[] = []) => {
     if (!user?.uid) return;
@@ -112,6 +118,36 @@ const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], users 
     return diffDays >= 0 && diffDays <= 7; // within 7 days
   });
 
+  useEffect(() => {
+    if (upcomingCareForMyForest) {
+      const shownDuty = sessionStorage.getItem(`duty_alert_shown_${today.substring(0,7)}`);
+      if (!shownDuty) {
+        setShowDutyAlert(true);
+        sessionStorage.setItem(`duty_alert_shown_${today.substring(0,7)}`, 'true');
+      }
+    }
+  }, [upcomingCareForMyForest, today]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const todayDate = new Date();
+    const lastDayOfMonth = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0);
+    const isLastWeek = (lastDayOfMonth.getDate() - todayDate.getDate()) <= 7;
+    
+    // Check current month fee
+    const currentMonthFee = fees?.find((f: any) => f.uid === user.uid && f.year === todayDate.getFullYear() && f.month === todayDate.getMonth() + 1);
+    const isFeeUnpaid = !currentMonthFee || currentMonthFee.status !== 'paid';
+
+    if (isLastWeek && isFeeUnpaid && user?.role !== 'admin' && user?.role !== 'pastor') { // Admins usually don't need automated fee warnings
+      const sessionKey = `fee_alert_shown_${todayDate.getFullYear()}_${todayDate.getMonth()+1}`;
+      const shownFee = sessionStorage.getItem(sessionKey);
+      if (!shownFee) {
+        setShowFeeAlert(true);
+        sessionStorage.setItem(sessionKey, 'true');
+      }
+    }
+  }, [fees, user]);
+
   const todaysVerse = useMemo(() => {
     const dayOfYear = Math.floor((new Date().getTime() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 1000 / 60 / 60 / 24);
     return BIBLE_VERSES[dayOfYear % BIBLE_VERSES.length];
@@ -190,8 +226,11 @@ const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], users 
 
           {/* Gamification / Community Tags Side by Side */}
           <div className="grid grid-cols-2 gap-3 mt-auto">
-            <div className="flex flex-col gap-1 bg-white/10 backdrop-blur-md p-3 rounded-2xl active:scale-[0.98] transition-transform cursor-pointer border border-white/5">
-              <span className="text-[11px] font-bold text-white/60">우리 숨 누적 열매 ⭐</span>
+            <div 
+              onClick={() => setIsFruitModalOpen(true)}
+              className="flex flex-col gap-1 bg-white/10 backdrop-blur-md p-3 rounded-2xl active:scale-[0.98] transition-transform cursor-pointer border border-white/5 hover:bg-white/20"
+            >
+              <span className="text-[11px] font-bold text-white/60">우리 숲 누적 열매 ⭐</span>
               <span className="text-[15px] font-extrabold text-white">{teamFruitCount}개</span>
             </div>
             <div className="flex flex-col gap-1 bg-white/10 backdrop-blur-md p-3 rounded-2xl active:scale-[0.98] transition-transform cursor-pointer border border-white/5">
@@ -205,31 +244,7 @@ const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], users 
         </div>
       </section>
 
-      {/* Kids Care Duty Notification */}
-      {upcomingCareForMyForest && (
-        <section className="bg-primary/10 border border-primary/20 p-5 rounded-2xl flex items-start gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
-          <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center shrink-0">
-            <Baby size={20} className="text-on-primary" />
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="font-bold text-primary font-headline">이번 주 우리 숲 봉사 안내</h3>
-              <span className="text-xs font-bold text-primary px-2 py-0.5 bg-primary/20 rounded-full">
-                {calculateDDay(upcomingCareForMyForest.date)}
-              </span>
-            </div>
-            <p className="text-sm font-medium text-on-surface">이번 주 주일({upcomingCareForMyForest.date})은 소속하신 숲이 키즈돌봄 당번입니다. 잊지 말고 꼭 참석해주세요!</p>
-            <div className="mt-3 flex gap-2">
-              <button 
-                onClick={() => onNavigateToKidsDetail ? onNavigateToKidsDetail(upcomingCareForMyForest.id) : onNavigate('kids')} 
-                className="text-xs font-bold bg-primary text-on-primary px-3 py-1.5 rounded-lg active:scale-95 transition-transform"
-              >
-                상세 보기
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
+      {/* Kids Care Duty Notification Removed from inline body - Now handled by Duty Alert Modal */}
 
       {/* Quick Menu Grid */}
       <section className="space-y-4">
@@ -461,6 +476,85 @@ const HomeView = ({ user, schedules, surveys, attendance, kidsCares = [], users 
           onShowToast={(msg: string) => alert(msg)}
           editItem={editingFamilyNews}
         />
+      )}
+
+      <FruitStatusModal 
+        isOpen={isFruitModalOpen}
+        onClose={() => setIsFruitModalOpen(false)}
+        teamFruitCount={teamFruitCount}
+        forestName={user?.forest || '우리'}
+      />
+
+      {/* Popups */}
+      {showDutyAlert && upcomingCareForMyForest && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-6 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-surface w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="p-6 pb-0 flex justify-center mt-4">
+              <div className="w-16 h-16 bg-primary-container rounded-full flex items-center justify-center">
+                <Baby size={32} className="text-primary" />
+              </div>
+            </div>
+            <div className="p-6 text-center">
+              <h3 className="text-xl font-bold font-headline text-on-surface mb-2">우리 숲 봉사주간 안내</h3>
+              <p className="text-on-surface-variant text-sm font-medium leading-relaxed mb-1">
+                이번 주 주일({upcomingCareForMyForest.date})은 <br/>소속하신 숲이 키즈돌봄 당번입니다.
+              </p>
+              <p className="text-primary font-bold text-sm">
+                아이들을 섬기는 기쁨에 함께해주세요!
+              </p>
+            </div>
+            <div className="p-6 pt-2 flex flex-col gap-2">
+              <button 
+                onClick={() => { setShowDutyAlert(false); if (onNavigateToKidsDetail) onNavigateToKidsDetail(upcomingCareForMyForest.id); else onNavigate('kids'); }}
+                className="w-full py-4 rounded-2xl bg-primary text-on-primary font-bold active:scale-95 transition-all text-sm shadow-sm"
+              >
+                당번 일정 상세보기
+              </button>
+              <button 
+                onClick={() => setShowDutyAlert(false)}
+                className="w-full py-4 rounded-2xl bg-surface-container-low text-on-surface font-bold active:scale-95 transition-all text-sm"
+              >
+                확인했습니다
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showFeeAlert && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-6 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-surface w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="p-6 pb-0 flex justify-center mt-4">
+              <div className="w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center animate-pulse">
+                <Wallet size={32} className="text-rose-500" />
+              </div>
+            </div>
+            <div className="p-6 text-center">
+              <h3 className="text-xl font-bold font-headline text-on-surface mb-2">회비 납부 안내</h3>
+              <p className="text-on-surface-variant text-sm font-medium leading-relaxed mb-3">
+                벌써 이번 달의 마지막 주간입니다.<br/>
+                아직 <span className="font-bold text-rose-500">이번 달 회비</span>납부가 확인되지 않았어요.
+              </p>
+              <p className="text-xs text-on-surface-variant/80 break-keep">
+                만약 납부하셨다면 관리자 확인 대기 중일 수 있습니다. 미납이시라면 원활한 청년부 운영을 위해 납부를 부탁드립니다 🙏
+              </p>
+            </div>
+            <div className="p-6 pt-2 flex flex-col gap-2">
+              <button 
+                onClick={() => { setShowFeeAlert(false); onNavigate('finance'); }}
+                className="w-full py-4 rounded-2xl bg-emerald-500 text-white font-bold active:scale-95 transition-all text-sm shadow-sm"
+              >
+                회비 납부하러 가기
+              </button>
+              <button 
+                onClick={() => setShowFeeAlert(false)}
+                className="w-full py-4 rounded-2xl bg-surface-container-low text-on-surface font-bold active:scale-95 transition-all text-sm"
+              >
+                나중에 하기
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

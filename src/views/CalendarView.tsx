@@ -8,7 +8,8 @@ import {
 import { collection, doc, setDoc, addDoc, getDoc, onSnapshot, query, where, orderBy, getDocFromServer, Timestamp, updateDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db as firestoreDb, auth, storage } from '../firebase';
-import { VISIT_CATEGORIES, MenuButton, ScheduleItem, MemberRow, OperationType, handleFirestoreError } from '../App';
+import { MenuButton, ScheduleItem, MemberRow, OperationType, handleFirestoreError } from '../App';
+import { VISIT_CATEGORIES } from '../components/PastoralCardModal';
 
 const CalendarView = ({ user, schedules, onShowToast }: any) => {
     const [today] = useState(new Date());

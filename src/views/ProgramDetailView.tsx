@@ -1,16 +1,18 @@
 import React, { useState, useRef } from 'react';
 import {
-  ChevronLeft, Calendar, MapPin, Heart, MoreVertical, Trash2, Edit, Camera, Save, X
+  ChevronLeft, Calendar, MapPin, Heart, MoreVertical, Trash2, Edit, Camera, Save, X, Users, AlertCircle
 } from 'lucide-react';
-import { collection, doc, addDoc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, deleteDoc, Timestamp, query, where, getDocs, deleteObject } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db as firestoreDb, storage } from '../firebase';
 import { OperationType, handleFirestoreError } from '../App';
+import ApplicantsModal from '../components/ApplicantsModal';
 
-const ProgramDetailView = ({ user, programId, programs, onBack, onShowToast }: { user: any, programId: string | null, programs: any[], onBack: () => void, onShowToast: (msg: string) => void }) => {
+const ProgramDetailView = ({ user, programId, programs, attendance = [], users = [], onBack, onShowToast }: { user: any, programId: string | null, programs: any[], attendance: any[], users: any[], onBack: () => void, onShowToast: (msg: string) => void }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isApplicantsModalOpen, setIsApplicantsModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const program = programs.find((p: any) => p.id === programId);
@@ -24,7 +26,29 @@ const ProgramDetailView = ({ user, programId, programs, onBack, onShowToast }: {
 
   const canEdit = user?.role === 'admin' || user?.role === 'leader';
 
+  const programApplicants = attendance.filter((a: any) => a.program_id === programId);
+  const myApplication = programApplicants.find((a: any) => a.uid === user?.uid);
+  const isApplied = !!myApplication;
+  const isFull = !program.isUnlimited && programApplicants.length >= (program.maxParticipants || 0);
+
   const handleApply = async () => {
+    if (isApplied) {
+      if (window.confirm('신청을 취소하시겠습니까?')) {
+        try {
+          await deleteDoc(doc(firestoreDb, 'attendance', myApplication.id));
+          onShowToast('신청이 취소되었습니다.');
+        } catch (err) {
+          handleFirestoreError(err, OperationType.DELETE, 'attendance');
+        }
+      }
+      return;
+    }
+
+    if (isFull) {
+      onShowToast('정원이 초과되어 신청할 수 없습니다.');
+      return;
+    }
+
     try {
       const attendanceRef = collection(firestoreDb, 'attendance');
       await addDoc(attendanceRef, {
@@ -70,6 +94,8 @@ const ProgramDetailView = ({ user, programId, programs, onBack, onShowToast }: {
         image: editForm.image,
         status: editForm.status,
         dDay: editForm.dDay || '',
+        maxParticipants: editForm.maxParticipants || 0,
+        isUnlimited: editForm.isUnlimited !== undefined ? editForm.isUnlimited : true,
         updatedAt: Timestamp.now()
       });
       setIsEditing(false);
@@ -197,6 +223,30 @@ const ProgramDetailView = ({ user, programId, programs, onBack, onShowToast }: {
               </div>
 
               <div>
+                <label className="flex items-center justify-between text-xs font-bold text-outline uppercase tracking-wider mb-2">
+                  <span>인원 제한 (정원)</span>
+                  <button 
+                    type="button"
+                    onClick={() => setEditForm({...editForm, isUnlimited: !editForm.isUnlimited})}
+                    className={`text-[10px] px-2 py-1 rounded-md transition-colors ${editForm.isUnlimited ? 'bg-primary text-on-primary' : 'bg-surface-container-highest text-on-surface-variant'}`}
+                  >
+                    {editForm.isUnlimited ? '제한 없음' : '제한 설정'}
+                  </button>
+                </label>
+                {!editForm.isUnlimited && (
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="number" 
+                      value={editForm.maxParticipants}
+                      onChange={(e) => setEditForm({...editForm, maxParticipants: parseInt(e.target.value) || 0})}
+                      className="flex-1 bg-surface-container-high text-on-surface p-4 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-bold"
+                    />
+                    <span className="font-bold text-on-surface-variant text-sm">명</span>
+                  </div>
+                )}
+              </div>
+
+              <div>
                 <label className="block text-xs font-bold text-outline uppercase tracking-wider mb-2">상태 설정</label>
                 <div className="flex gap-2">
                   {statuses.map(stat => (
@@ -269,13 +319,30 @@ const ProgramDetailView = ({ user, programId, programs, onBack, onShowToast }: {
 
         {/* Content Body */}
         <div className="p-6 -mt-6 relative bg-surface rounded-t-3xl border-t border-surface-container-low shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm font-bold text-tertiary">{program.type}</span>
-            <span className="w-1 h-1 rounded-full bg-surface-container-highest"></span>
-            <span className="text-sm font-medium text-on-surface-variant">{program.host}</span>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-tertiary">{program.type}</span>
+              <span className="w-1 h-1 rounded-full bg-surface-container-highest"></span>
+              <span className="text-sm font-medium text-on-surface-variant">{program.host}</span>
+            </div>
+            
+            <button 
+              onClick={() => setIsApplicantsModalOpen(true)}
+              className="flex items-center gap-2 bg-secondary/10 text-secondary px-3 py-1.5 rounded-full text-xs font-bold hover:bg-secondary/20 transition-colors"
+            >
+              <Users size={14} />
+              신청 {programApplicants.length}명{program.isUnlimited ? '' : ` / ${program.maxParticipants}명`}
+            </button>
           </div>
           
           <h2 className="text-2xl font-bold text-on-surface mb-6 tracking-tight leading-tight">{program.title}</h2>
+          
+          {isFull && !isApplied && (
+            <div className="mb-6 bg-error/10 text-error p-4 rounded-2xl flex items-center gap-3 border border-error/20 animate-in fade-in zoom-in-95 duration-300">
+              <AlertCircle size={20} />
+              <p className="text-sm font-bold">현재 정원이 모두 차서 더 이상 신청할 수 없습니다.</p>
+            </div>
+          )}
           
           <div className="space-y-4 mb-8 bg-surface-container-lowest p-5 rounded-2xl border border-surface-container-low shadow-sm">
             <div className="flex items-start gap-3">
@@ -313,10 +380,28 @@ const ProgramDetailView = ({ user, programId, programs, onBack, onShowToast }: {
         <button onClick={() => onShowToast('관심 프로그램으로 등록되었습니다.')} className="w-14 h-14 rounded-2xl bg-surface-container-low flex items-center justify-center text-on-surface-variant hover:text-error transition-colors shadow-sm border border-surface-container-low">
           <Heart size={24} />
         </button>
-        <button onClick={handleApply} className="flex-1 bg-primary text-on-primary rounded-2xl text-base font-bold hover:bg-primary-dim transition-colors shadow-md shadow-primary/20 hover:-translate-y-0.5 transform duration-200">
-          신청하기
+        <button 
+          onClick={handleApply} 
+          disabled={isFull && !isApplied}
+          className={`flex-1 rounded-2xl text-base font-bold transition-all shadow-md shadow-primary/20 hover:-translate-y-0.5 transform duration-200 ${
+            isApplied 
+              ? 'bg-surface-container-highest text-on-surface border border-outline-variant' 
+              : isFull 
+                ? 'bg-surface-container-highest text-outline cursor-not-allowed shadow-none'
+                : 'bg-primary text-on-primary hover:bg-primary-dim'
+          }`}
+        >
+          {isApplied ? '신청 취소하기' : isFull ? '정원 마감' : '신청하기'}
         </button>
       </div>
+
+      <ApplicantsModal 
+        isOpen={isApplicantsModalOpen}
+        onClose={() => setIsApplicantsModalOpen(false)}
+        programTitle={program.title}
+        applicants={programApplicants}
+        users={users}
+      />
     </div>
   );
 };

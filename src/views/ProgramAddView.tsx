@@ -8,7 +8,8 @@ import {
 import { collection, doc, setDoc, addDoc, getDoc, onSnapshot, query, where, orderBy, getDocFromServer, Timestamp, updateDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db as firestoreDb, auth, storage } from '../firebase';
-import { VISIT_CATEGORIES, MenuButton, ScheduleItem, MemberRow, OperationType, handleFirestoreError } from '../App';
+import { MenuButton, ScheduleItem, MemberRow, OperationType, handleFirestoreError } from '../App';
+import { VISIT_CATEGORIES } from '../components/PastoralCardModal';
 
 const ProgramAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToast: (msg: string) => void }) => {
   const [formData, setFormData] = useState({
@@ -20,7 +21,9 @@ const ProgramAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
     location: '',
     image: 'https://picsum.photos/seed/program/800/400',
     status: '모집중',
-    dDay: ''
+    dDay: '',
+    maxParticipants: 10,
+    isUnlimited: true
   });
   
   const [isUploading, setIsUploading] = useState(false);
@@ -174,6 +177,31 @@ const ProgramAddView = ({ onBack, onShowToast }: { onBack: () => void, onShowToa
                 placeholder="예: 태국 치앙마이 일대"
                 className="w-full bg-surface-container-high text-on-surface p-4 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
               />
+            </div>
+
+            <div>
+              <label className="flex items-center justify-between text-xs font-bold text-outline uppercase tracking-wider mb-2">
+                <span>인원 제한 (정원)</span>
+                <button 
+                  type="button"
+                  onClick={() => setFormData({...formData, isUnlimited: !formData.isUnlimited})}
+                  className={`text-[10px] px-2 py-1 rounded-md transition-colors ${formData.isUnlimited ? 'bg-primary text-on-primary' : 'bg-surface-container-highest text-on-surface-variant'}`}
+                >
+                  {formData.isUnlimited ? '제한 없음' : '제한 설정'}
+                </button>
+              </label>
+              {!formData.isUnlimited && (
+                <div className="flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <input 
+                    type="number" 
+                    value={formData.maxParticipants}
+                    onChange={(e) => setFormData({...formData, maxParticipants: parseInt(e.target.value) || 0})}
+                    className="flex-1 bg-surface-container-high text-on-surface p-4 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-bold"
+                    min="1"
+                  />
+                  <span className="font-bold text-on-surface-variant">명</span>
+                </div>
+              )}
             </div>
           </div>
 
