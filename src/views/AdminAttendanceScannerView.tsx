@@ -92,9 +92,10 @@ export default function AdminAttendanceScannerView({ onBack, onShowToast, curren
           <style dangerouslySetInnerHTML={{__html: `
             #reader { border: none !important; width: 100%; border-radius: 20px; overflow: hidden; }
             #reader video { object-fit: cover; }
-            #reader__dashboard_section_csr span { color: white !important; font-size: 14px; }
-            #reader__dashboard_section_swaplink { color: #34d399 !important; text-decoration: none; margin-top: 10px; display: inline-block; font-weight: bold; }
-            #reader__camera_permission_button { background: #10b981 !important; color: white !important; border: none !important; padding: 12px 24px !important; border-radius: 999px !important; font-weight: bold !important; cursor: pointer; }
+            #reader * { color: white !important; font-family: inherit; }
+            #reader a { color: #34d399 !important; text-decoration: underline; font-weight: bold; margin-top: 10px; display: inline-block; }
+            #reader button { background: #10b981 !important; color: white !important; border: none !important; padding: 12px 24px !important; border-radius: 99px !important; font-weight: bold !important; cursor: pointer; margin-top: 10px; }
+            #reader__dashboard_section_swaplink { text-decoration: none; }
           `}} />
           <div id="reader" className="w-full"></div>
           

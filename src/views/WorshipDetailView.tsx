@@ -123,6 +123,64 @@ const WorshipDetailView = ({
     } catch (err) { handleFirestoreError(err, OperationType.WRITE, 'worships'); }
   };
 
+  const handleKakaoShare = () => {
+    const kakao = (window as any).Kakao;
+    if (!kakao || !kakao.isInitialized()) {
+      onShowToast?.("카카오톡 공유 기능을 불러오지 못했습니다.");
+      return;
+    }
+
+    let descriptionText = "";
+    if (worship.participants && worship.participants.length > 0) {
+      // Create role summary: e.g. "사회    박수형 부장"
+      descriptionText += worship.participants.map((p: any) => `${p.role}\t${p.name}`).join('\n');
+      descriptionText += "\n\n";
+    }
+    
+    if (worship.scripture_content) {
+      const shortScripture = worship.scripture_content.length > 30 ? worship.scripture_content.substring(0, 30) + "..." : worship.scripture_content;
+      descriptionText += `[${worship.scripture || '본문'}]\n${shortScripture}`;
+    }
+
+    if (worship.subtitle) {
+      if (descriptionText.length > 0) descriptionText += "\n";
+      descriptionText += worship.subtitle;
+    }
+
+    if (!descriptionText) {
+      descriptionText = worship.title || "주보 상세 정보 확인하기";
+    }
+    
+    const shareTitle = `${formatDate(worship.date)} 예배`;
+
+    let safeImageUrl = 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=800';
+    if (worship.image && worship.image.startsWith('http')) {
+      safeImageUrl = worship.image;
+    }
+
+    kakao.Share.sendDefault({
+      objectType: 'feed',
+      content: {
+        title: shareTitle,
+        description: descriptionText,
+        imageUrl: safeImageUrl,
+        link: {
+          mobileWebUrl: window.location.href,
+          webUrl: window.location.href,
+        },
+      },
+      buttons: [
+        {
+          title: '예배 확인하기',
+          link: {
+            mobileWebUrl: window.location.href,
+            webUrl: window.location.href,
+          },
+        },
+      ],
+    });
+  };
+
   const handleCoverImageUploadEdit = async (e: any) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -643,6 +701,19 @@ const WorshipDetailView = ({
               </div>
             </section>
           )}
+
+          {/* 하단 카카오톡 공유 버튼 */}
+          <div className="pt-2 pb-6">
+            <button 
+              onClick={handleKakaoShare}
+              className="w-full bg-[#FEE500] hover:bg-[#E6CF00] text-[#191919] font-bold py-4 px-6 rounded-2xl shadow-sm transition-transform active:scale-95 flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 3c-5.523 0-10 3.47-10 7.75 0 2.73 1.88 5.13 4.68 6.47-.15.48-.48 1.68-.55 1.95-.09.33.12.33.26.24.11-.08 1.73-1.15 2.45-1.65 1.01.29 2.07.44 3.16.44 5.523 0 10-3.47 10-7.75S17.523 3 12 3z" />
+              </svg>
+              카카오톡으로 앱 주보 공유하기
+            </button>
+          </div>
 
         </div>
       </div>

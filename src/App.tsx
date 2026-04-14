@@ -356,7 +356,9 @@ export default function App() {
 
     const qNotifications = query(collection(firestoreDb, 'notifications'), orderBy('createdAt', 'desc'));
     const unsubNotifications = onSnapshot(qNotifications, (snapshot) => {
-      setNotifications(snapshot.docs.map(d => ({ ...d.data(), id: d.id })).slice(0, 50));
+      const allNotifs = snapshot.docs.map(d => ({ ...d.data(), id: d.id }));
+      const visibleNotifs = allNotifs.filter((n: any) => !n.target_uid || n.target_uid === user?.uid);
+      setNotifications(visibleNotifs.slice(0, 50));
     }, (err) => handleFirestoreError(err, OperationType.GET, 'notifications'));
 
     return () => {
@@ -691,7 +693,7 @@ export default function App() {
         {subPage === 'mypage' && (
           <MyPageView
             user={currentUser}
-            forests={forests}
+            forests={mergedForests}
             attendance={attendance}
             onBack={() => setSubPage(null)}
             onShowToast={showToast}
@@ -980,6 +982,25 @@ export default function App() {
         isOpen={isNotificationModalOpen}
         onClose={() => setIsNotificationModalOpen(false)}
         notifications={notifications}
+        onNotificationClick={(notif) => {
+          if (notif.category === 'schedule') {
+            setActiveTab('kids');
+            if (notif.linkId) {
+              setSelectedKidsCareId(notif.linkId);
+              setSubPage('kids_care_detail');
+            }
+          } else if (notif.category === 'family_news') {
+            setActiveTab('home');
+            setSubPage(null);
+            setTimeout(() => {
+              const el = document.getElementById('family-news-section');
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 200);
+          } else if (notif.type === 'fee_reminder') {
+            setActiveTab('my');
+          }
+          setIsNotificationModalOpen(false);
+        }}
       />
     </div>
   );
@@ -1876,7 +1897,7 @@ export const MemberRow = ({ member, forests, onClick }: any) => {
             )}
           </div>
           <p className="text-[11px] text-on-surface-variant font-medium mt-0.5 flex items-center gap-1">
-            {forestName} {member.role === 'leader' ? '• 숲장' : '• 멤버'}
+            {forestName} {member.role === 'leader' ? '• 숲지기' : '• 멤버'}
           </p>
         </div>
       </div>

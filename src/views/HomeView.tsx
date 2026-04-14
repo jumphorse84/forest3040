@@ -73,13 +73,19 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
     return () => unsubscribe();
   }, []);
 
-  
+  const forestName = forests?.find((f: any) =>
+    f.forest_id === user?.forest_id ||
+    f.id === user?.forest_id ||
+    f.forest_id === user?.forest ||
+    f.id === user?.forest
+  )?.name || '소속 없음';
+
   const ticketUser = user ? {
     avatarSrc: user.photoURL || user.profileImageUrl || user.picture || '',
     avatarFallback: user.name?.substring(0, 1) || '👤',
     name: user.name || '알 수 없음',
-    affiliation: user.forest || '소속 없음',
-    title: user.role === 'admin' ? '운영진' : user.role === 'leader' ? '마을장' : '멤버',
+    affiliation: forestName,
+    title: user.role === 'admin' ? '운영진' : user.role === 'leader' ? '숲지기' : '멤버',
     birthdate: user.birthdate || user.birthDate || '미상',
     qrData: user.uid ? `${user.uid}_${Date.now()}` : 'GUEST_QR'
   } : null;
@@ -119,14 +125,17 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
   });
 
   useEffect(() => {
-    if (upcomingCareForMyForest) {
-      const shownDuty = sessionStorage.getItem(`duty_alert_shown_${today.substring(0,7)}`);
-      if (!shownDuty) {
-        setShowDutyAlert(true);
-        sessionStorage.setItem(`duty_alert_shown_${today.substring(0,7)}`, 'true');
+    if (upcomingCareForMyForest && user?.uid) {
+      const acknowledged = localStorage.getItem(`duty_alert_acknowledged_v2_${upcomingCareForMyForest.id}_${user.uid}`);
+      if (!acknowledged) {
+        const sessionShown = sessionStorage.getItem(`duty_alert_shown_${upcomingCareForMyForest.id}`);
+        if (!sessionShown) {
+          setShowDutyAlert(true);
+          sessionStorage.setItem(`duty_alert_shown_${upcomingCareForMyForest.id}`, 'true');
+        }
       }
     }
-  }, [upcomingCareForMyForest, today]);
+  }, [upcomingCareForMyForest, user]);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -367,7 +376,7 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
     </section>
 
     {/* Family News Highlight (Carousel) */}
-    <section className="space-y-4 pt-2">
+    <section id="family-news-section" className="space-y-4 pt-2">
       <div className="flex justify-between items-center px-4">
         <h2 className="font-headline text-xl font-bold tracking-tight text-on-surface">우리 숲 가족 소식</h2>
         {(user?.role === 'admin' || user?.role === 'leader' || user?.role === 'pastor') && (
@@ -511,7 +520,29 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
                 당번 일정 상세보기
               </button>
               <button 
-                onClick={() => setShowDutyAlert(false)}
+                onClick={async () => {
+                  setShowDutyAlert(false);
+                  if (user?.uid) {
+                    localStorage.setItem(`duty_alert_acknowledged_v2_${upcomingCareForMyForest.id}_${user.uid}`, 'true');
+                    try {
+                      const notifRef = doc(firestoreDb, 'notifications', `duty_${upcomingCareForMyForest.id}_${user.uid}`);
+                      const notifSnap = await getDoc(notifRef);
+                      if (!notifSnap.exists()) {
+                        const forestName = upcomingCareForMyForest.forest_name || upcomingCareForMyForest.forest_id || '';
+                        await setDoc(notifRef, {
+                          title: '🧒 키즈돌봄 당번 안내',
+                          body: `안녕하세요! 이번 주 주일(${upcomingCareForMyForest.date})은 우리 숲이 키즈돌봄 봉사 당번입니다. 예배 시간 중 소중한 아이들을 함께 섬겨주세요. 감사합니다 💚`,
+                          category: 'schedule',
+                          createdAt: new Date().toISOString(),
+                          target_uid: user.uid,
+                          linkId: upcomingCareForMyForest.id
+                        });
+                      }
+                    } catch (e) {
+                      console.error("Error creating notification:", e);
+                    }
+                  }
+                }}
                 className="w-full py-4 rounded-2xl bg-surface-container-low text-on-surface font-bold active:scale-95 transition-all text-sm"
               >
                 확인했습니다

@@ -18,7 +18,12 @@ const MyPageView = ({ user, forests, attendance, onBack, onShowToast, onLogout, 
   const [editBio, setEditBio] = useState(user.bio || '');
   const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false);
 
-  const forestName = forests?.find((f: any) => f.id === user.forest_id || f.id === user.forest)?.name || '소속 없음';
+  const forestName = forests?.find((f: any) =>
+    f.forest_id === user.forest_id ||
+    f.id === user.forest_id ||
+    f.forest_id === user.forest ||
+    f.id === user.forest
+  )?.name || '소속 없음';
   
   const userActivities = attendance
     .filter((a: any) => a.uid === user.uid)

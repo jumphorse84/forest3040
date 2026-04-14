@@ -14,9 +14,10 @@ interface NotificationModalProps {
   isOpen: boolean;
   onClose: () => void;
   notifications: NotificationItem[];
+  onNotificationClick?: (notif: NotificationItem) => void;
 }
 
-export const NotificationModal = ({ isOpen, onClose, notifications }: NotificationModalProps) => {
+export const NotificationModal = ({ isOpen, onClose, notifications, onNotificationClick }: NotificationModalProps) => {
   if (!isOpen) return null;
 
   const getIconForCategory = (category: string) => {
@@ -103,13 +104,17 @@ export const NotificationModal = ({ isOpen, onClose, notifications }: Notificati
           ) : (
             <div className="space-y-2">
               {notifications.map((notif) => (
-                <div key={notif.id} className="flex gap-4 p-4 rounded-2xl bg-surface-container-lowest hover:bg-surface-container-low transition-colors cursor-default">
+                <div 
+                  key={notif.id} 
+                  onClick={() => onNotificationClick && onNotificationClick(notif)}
+                  className="flex gap-4 p-4 rounded-2xl bg-surface-container-lowest hover:bg-surface-container-low transition-colors cursor-pointer active:scale-[0.98]"
+                >
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${getBgForCategory(notif.category)}`}>
                     {getIconForCategory(notif.category)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-sm text-on-surface line-clamp-1">{notif.title}</p>
-                    <p className="text-xs text-on-surface-variant mt-1 line-clamp-2 leading-relaxed">{notif.body}</p>
+                    <p className="text-xs text-on-surface-variant mt-1 line-clamp-2 leading-relaxed">{notif.body || notif.message}</p>
                     <p className="text-[10px] font-medium text-outline mt-2">{formatTimeAgo(notif.createdAt)}</p>
                   </div>
                 </div>

@@ -138,7 +138,7 @@ const AdminUserManagementView = ({ users, onBack, onShowToast }: any) => {
                   <label className="text-xs font-bold text-on-surface-variant mb-1 block">등급 (Role)</label>
                   <select value={editProfile.role} onChange={e => setEditProfile({...editProfile, role: e.target.value})} className="w-full bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary">
                     <option value="member">일반 (member)</option>
-                    <option value="leader">리더 (leader)</option>
+                    <option value="leader">숲지기 (leader)</option>
                     <option value="pastor">목사님 (pastor)</option>
                     <option value="admin">관리자 (admin)</option>
                   </select>
