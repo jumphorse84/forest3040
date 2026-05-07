@@ -7,6 +7,7 @@ import {
 import { collection, addDoc, Timestamp } from 'firebase/firestore';
 import { db as firestoreDb } from '../firebase';
 import { OperationType, handleFirestoreError } from '../App';
+import { searchBible } from '../utils/bibleParser';
 
 export default function WorshipAddView({ onBack, onShowToast }: { onBack: () => void; onShowToast: (msg: string) => void }) {
   
@@ -105,32 +106,9 @@ export default function WorshipAddView({ onBack, onShowToast }: { onBack: () => 
     setIsBibleSearching(true);
     setBibleResult(null);
     
-    await new Promise(resolve => setTimeout(resolve, 500));
+    const result = await searchBible(bibleQuery, bibleVersion);
+    setBibleResult(result);
     
-    const mockDb: any = {
-      "출애굽기 17:8-9": "그 때에 아말렉이 와서 이스라엘과 르비딤에서 싸우니라\n모세가 여호수아에게 이르되 우리를 위하여 사람들을 택하여 나가서 아말렉과 싸우라 내일 내가 하나님의 지팡이를 손에 잡고 산 꼭대기에 서리라",
-      "출 17:8-9": "그 때에 아말렉이 와서 이스라엘과 르비딤에서 싸우니라\n모세가 여호수아에게 이르되 우리를 위하여 사람들을 택하여 나가서 아말렉과 싸우라 내일 내가 하나님의 지팡이를 손에 잡고 산 꼭대기에 서리라",
-      "요한복음 3:16": "하나님이 세상을 이처럼 사랑하사 독생자를 주셨으니 이는 그를 믿는 자마다 멸망하지 않고 영생을 얻게 하려 하심이라",
-      "요 3:16": "하나님이 세상을 이처럼 사랑하사 독생자를 주셨으니 이는 그를 믿는 자마다 멸망하지 않고 영생을 얻게 하려 하심이라",
-      "창세기 1:1": "태초에 하나님이 천지를 창조하시니라",
-      "창 1:1": "태초에 하나님이 천지를 창조하시니라",
-      "빌립보서 4:13": "내게 능력 주시는 자 안에서 내가 모든 것을 할 수 있느니라",
-      "빌 4:13": "내게 능력 주시는 자 안에서 내가 모든 것을 할 수 있느니라"
-    };
-
-    const query = bibleQuery.replace(/\s+/g, ' ').trim();
-    let resultText = mockDb[query];
-
-    if (resultText) {
-      const fullReference = query.replace('출 ', '출애굽기 ').replace('요 ', '요한복음 ').replace('창 ', '창세기 ').replace('빌 ', '빌립보서 ');
-      setBibleResult({ reference: `${fullReference} (${bibleVersion})`, text: resultText });
-    } else {
-      setBibleResult({ 
-        reference: `${query} (${bibleVersion})`, 
-        text: "현재 테스트 버전에는 이 말씀 데이터가 없습니다.\n(테스트 가능한 구절: 요 3:16, 창 1:1, 빌 4:13, 출 17:8-9)" 
-      });
-    }
-
     setIsBibleSearching(false);
   };
 

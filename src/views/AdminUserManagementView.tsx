@@ -67,6 +67,28 @@ const AdminUserManagementView = ({ users, onBack, onShowToast }: any) => {
     }
   };
 
+  const handleApproveUser = async (e: React.MouseEvent, userId: string) => {
+    e.stopPropagation();
+    try {
+      await updateDoc(doc(firestoreDb, 'users', userId), { status: 'approved' });
+      onShowToast('가입을 승인했습니다.');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
+    }
+  };
+
+  const handleRejectUser = async (e: React.MouseEvent, userId: string) => {
+    e.stopPropagation();
+    if (window.confirm("정말로 이 대기자를 거절 및 삭제하시겠습니까? (DB에서 데이터 삭제)")) {
+      try {
+        await deleteDoc(doc(firestoreDb, 'users', userId));
+        onShowToast('가입이 거절 및 삭제되었습니다.');
+      } catch (err) {
+        handleFirestoreError(err, OperationType.DELETE, `users/${userId}`);
+      }
+    }
+  };
+
   if (selectedUser) {
     const permissions = selectedUser.permissions || {};
     const menuItems = [
@@ -188,30 +210,76 @@ const AdminUserManagementView = ({ users, onBack, onShowToast }: any) => {
           <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">사용자 계정 관리</h1>
         </div>
       </header>
-      <div className="p-6 space-y-4">
-        {users.map((u: any) => (
-          <div 
-            key={u.uid} 
-            onClick={() => handleSelectUser(u)}
-            className="bg-surface-container-lowest p-4 rounded-2xl border border-surface-container-low shadow-sm flex items-center justify-between hover:border-primary transition-colors cursor-pointer"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-primary-container text-on-primary-container rounded-full flex items-center justify-center font-bold">
-                {u.name.charAt(0)}
-              </div>
-              <div>
-                <p className="font-bold text-on-surface">{u.name}</p>
-                <p className="text-xs text-on-surface-variant">{u.email}</p>
-              </div>
+      <div className="p-6 space-y-8">
+        
+        {/* Pending approvals section */}
+        {users.filter((u: any) => u.status === 'pending').length > 0 && (
+          <section className="space-y-4">
+            <h2 className="text-sm font-bold text-amber-600 flex items-center gap-2">
+              <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>
+              가입 승인 대기자
+            </h2>
+            <div className="space-y-3">
+              {users.filter((u: any) => u.status === 'pending').map((u: any) => (
+                <div key={u.uid} className="bg-amber-50/50 p-4 rounded-2xl border border-amber-200/50 shadow-sm flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center font-bold">
+                      {u.name.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="font-bold text-amber-900">{u.name}</p>
+                      <p className="text-xs text-amber-700/70">{u.email || '이메일 없음'}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={(e) => handleRejectUser(e, u.uid)}
+                      className="px-4 py-2 bg-white text-error text-xs font-bold rounded-xl border border-error/20 active:scale-95 transition-transform shadow-sm"
+                    >
+                      거절
+                    </button>
+                    <button 
+                      onClick={(e) => handleApproveUser(e, u.uid)}
+                      className="px-4 py-2 bg-primary text-white text-xs font-bold rounded-xl active:scale-95 transition-transform shadow-sm"
+                    >
+                      승인
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="flex items-center gap-3">
-              <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${u.role === 'admin' ? 'bg-error-container text-on-error-container' : u.role === 'leader' ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-on-surface-variant'}`}>
-                {u.role || 'member'}
-              </span>
-              <ChevronRight size={20} className="text-outline" />
-            </div>
+          </section>
+        )}
+
+        {/* Existing Users */}
+        <section className="space-y-4">
+          <h2 className="text-sm font-bold text-outline uppercase tracking-widest pl-1">승인된 회원 명단</h2>
+          <div className="space-y-3">
+            {users.filter((u: any) => u.status !== 'pending').map((u: any) => (
+              <div 
+                key={u.uid} 
+                onClick={() => handleSelectUser(u)}
+                className="bg-surface-container-lowest p-4 rounded-2xl border border-surface-container-low shadow-sm flex items-center justify-between hover:border-primary transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-primary-container text-on-primary-container rounded-full flex items-center justify-center font-bold">
+                    {u.name.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="font-bold text-on-surface">{u.name}</p>
+                    <p className="text-xs text-on-surface-variant">{u.email}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${u.role === 'admin' ? 'bg-error-container text-on-error-container' : u.role === 'leader' ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container text-on-surface-variant'}`}>
+                    {u.role || 'member'}
+                  </span>
+                  <ChevronRight size={20} className="text-outline" />
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        </section>
       </div>
     </div>
   );

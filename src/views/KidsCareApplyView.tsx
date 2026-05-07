@@ -3,7 +3,7 @@ import { ChevronLeft, Plus, X, Baby, CheckCircle2, Heart, AlertTriangle } from '
 import { doc, updateDoc, addDoc, collection, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
-interface SavedChild { name: string; age: number; gender: string; }
+interface SavedChild { name: string; age?: number; birthYear?: string; gender: string; notes?: string; }
 interface ChildConfig { condition: 'good' | 'normal' | 'caution'; hasAllergy: boolean; allergyText: string; }
 
 export default function KidsCareApplyView({ kidsCareId, kidsCares, user, onBack, onShowToast }: any) {
@@ -14,7 +14,7 @@ export default function KidsCareApplyView({ kidsCareId, kidsCares, user, onBack,
   const [childConfigs, setChildConfigs] = useState<{ [key: string]: ChildConfig }>({});
 
   const [addingNew, setAddingNew] = useState(false);
-  const [newChild, setNewChild] = useState({ name: '', age: '', gender: 'female' });
+  const [newChild, setNewChild] = useState({ name: '', birthYear: '', gender: 'female' });
 
   const [emergencyContact, setEmergencyContact] = useState(user?.phone || '');
   const [pickupPerson, setPickupPerson] = useState('');
@@ -35,7 +35,8 @@ export default function KidsCareApplyView({ kidsCareId, kidsCares, user, onBack,
     } else {
       setSelectedNames(prev => [...prev, name]);
       if (!childConfigs[name]) {
-        setChildConfigs(prev => ({ ...prev, [name]: { condition: 'good', hasAllergy: false, allergyText: '' } }));
+        const saved = savedChildren.find(c => c.name === name);
+        setChildConfigs(prev => ({ ...prev, [name]: { condition: 'good', hasAllergy: !!saved?.notes, allergyText: saved?.notes || '' } }));
       }
     }
   };
@@ -45,16 +46,24 @@ export default function KidsCareApplyView({ kidsCareId, kidsCares, user, onBack,
   };
 
   const handleAddNewChild = async () => {
-    if (!newChild.name.trim() || !newChild.age) { onShowToast('이름과 나이를 입력해주세요.'); return; }
-    const child: SavedChild = { name: newChild.name.trim(), age: parseInt(newChild.age), gender: newChild.gender };
+    if (!newChild.name.trim() || !newChild.birthYear) { onShowToast('이름과 출생연도를 입력해주세요.'); return; }
+    const child: SavedChild = { name: newChild.name.trim(), birthYear: newChild.birthYear, gender: newChild.gender };
     const updated = [...savedChildren, child];
     try {
       await updateDoc(doc(db, 'users', user.uid), { children: updated });
       setSavedChildren(updated);
       toggleChild(child.name);
-      setNewChild({ name: '', age: '', gender: 'female' });
+      setNewChild({ name: '', birthYear: '', gender: 'female' });
       setAddingNew(false);
     } catch (e) { onShowToast('자녀 정보 저장 중 오류가 발생했습니다.'); }
+  };
+
+  const getChildAge = (child: SavedChild) => {
+    if (child.birthYear) {
+      const currentYear = new Date().getFullYear();
+      return currentYear - parseInt(child.birthYear) + 1;
+    }
+    return child.age || 0;
   };
 
   const handleSubmit = async () => {
@@ -65,7 +74,7 @@ export default function KidsCareApplyView({ kidsCareId, kidsCares, user, onBack,
       const children = selectedNames.map(name => {
         const saved = savedChildren.find(c => c.name === name);
         const config = childConfigs[name] || { condition: 'good', hasAllergy: false, allergyText: '' };
-        return { name, age: saved?.age || 0, gender: saved?.gender || '', condition: config.condition, allergies: config.hasAllergy ? config.allergyText : '', status: 'pending', check_in_time: null, check_out_time: null };
+        return { name, age: getChildAge(saved || { name, gender: '' }), gender: saved?.gender || '', condition: config.condition, allergies: config.hasAllergy ? config.allergyText : '', status: 'pending', check_in_time: null, check_out_time: null };
       });
       await addDoc(collection(db, 'kids_applications'), {
         kids_care_id: kidsCareId, worship_date: careData?.date,
@@ -142,7 +151,7 @@ export default function KidsCareApplyView({ kidsCareId, kidsCares, user, onBack,
                   >
                     <span className="text-lg">{child.gender === 'female' ? '👧' : '👦'}</span>
                     <span className="font-bold text-sm">{child.name}</span>
-                    <span className={`text-xs ${sel ? 'opacity-80' : 'opacity-60'}`}>{child.age}세</span>
+                    <span className={`text-xs ${sel ? 'opacity-80' : 'opacity-60'}`}>{getChildAge(child)}세</span>
                     {sel && <CheckCircle2 size={14} />}
                   </button>
                 );
@@ -167,7 +176,7 @@ export default function KidsCareApplyView({ kidsCareId, kidsCares, user, onBack,
               <input type="text" placeholder="이름" value={newChild.name} onChange={e => setNewChild({...newChild, name: e.target.value})}
                 className="w-full bg-white border border-[#c8e6c9] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#0F6045]" />
               <div className="flex gap-2">
-                <input type="number" placeholder="나이" value={newChild.age} onChange={e => setNewChild({...newChild, age: e.target.value})}
+                <input type="number" placeholder="출생연도 (예: 2018)" value={newChild.birthYear} onChange={e => setNewChild({...newChild, birthYear: e.target.value})}
                   className="flex-1 bg-white border border-[#c8e6c9] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#0F6045]" />
                 <div className="flex rounded-xl overflow-hidden border border-[#c8e6c9]">
                   {['female','male'].map(g => (

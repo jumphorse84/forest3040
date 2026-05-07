@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Bell, Heart, Calendar, FileText, CheckCircle2 } from 'lucide-react';
+import { X, Bell, Heart, Calendar, FileText, CheckCircle2, Baby } from 'lucide-react';
 
 interface NotificationItem {
   id: string;
@@ -26,6 +26,8 @@ export const NotificationModal = ({ isOpen, onClose, notifications, onNotificati
         return <Heart className="text-secondary" size={20} />;
       case 'schedule':
         return <Calendar className="text-primary" size={20} />;
+      case 'kids_care':
+        return <Baby className="text-[#e27351]" size={20} />;
       case 'survey':
         return <FileText className="text-tertiary" size={20} />;
       default:
@@ -39,6 +41,8 @@ export const NotificationModal = ({ isOpen, onClose, notifications, onNotificati
         return 'bg-secondary/10';
       case 'schedule':
         return 'bg-primary/10';
+      case 'kids_care':
+        return 'bg-[#ffefeb]';
       case 'survey':
         return 'bg-tertiary/10';
       default:

@@ -8,6 +8,7 @@ import { doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db as firestoreDb, storage } from '../firebase';
 import { OperationType, handleFirestoreError } from '../App';
+import { searchBible } from '../utils/bibleParser';
 
 const WorshipDetailView = ({
   user,
@@ -238,17 +239,10 @@ const WorshipDetailView = ({
     e.preventDefault();
     if (!bibleQuery.trim()) return;
     setIsBibleSearching(true); setBibleResult(null);
-    await new Promise(resolve => setTimeout(resolve, 400));
-    const mockBible: any = {
-      '요한복음 3:16': '하나님이 세상을 이처럼 사랑하사 독생자를 주셨으니 이는 그를 믿는 자마다 멸망하지 않고 영생을 얻게 하려 하심이라',
-      '요 3:16': '하나님이 세상을 이처럼 사랑하사 독생자를 주셨으니 이는 그를 믿는 자마다 멸망하지 않고 영생을 얻게 하려 하심이라',
-      '창세기 1:1': '태초에 하나님이 천지를 창조하시니라', '창 1:1': '태초에 하나님이 천지를 창조하시니라',
-      '빌립보서 4:13': '내게 능력 주시는 자 안에서 내가 모든 것을 할 수 있느니라', '빌 4:13': '내게 능력 주시는 자 안에서 내가 모든 것을 할 수 있느니라',
-      '출애굽기 17:8-9': '그 때에 아말렉이 와서 이스라엘과 르비딤에서 싸우니라\n모세가 여호수아에게 이르되 나가서 아말렉과 싸우라 내일 내가 하나님의 지팡이를 손에 잡고 산 꼭대기에 서리라',
-      '출 17:8-9': '그 때에 아말렉이 와서 이스라엘과 르비딤에서 싸우니라\n모세가 여호수아에게 이르되 나가서 아말렉과 싸우라 내일 내가 하나님의 지팡이를 손에 잡고 산 꼭대기에 서리라',
-    };
-    const text = mockBible[bibleQuery.trim()];
-    setBibleResult(text ? { reference: bibleQuery.trim(), text } : { reference: bibleQuery.trim(), text: '현재 버전에 이 말씀 데이터가 없습니다.\n(테스트: 요 3:16, 창 1:1, 빌 4:13, 출 17:8-9)' });
+
+    const result = await searchBible(bibleQuery, bibleVersion);
+    setBibleResult(result);
+
     setIsBibleSearching(false);
   };
 

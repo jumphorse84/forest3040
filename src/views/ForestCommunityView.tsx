@@ -5,7 +5,7 @@ import { twMerge } from 'tailwind-merge';
 import {
   X, ChevronLeft, ChevronRight, Volume2, VolumeX, Pause, Loader2,
   Plus, Send, Type, Check, Image as ImageIcon, Upload, CornerDownRight,
-  Megaphone, PenTool, Smile, Trash2,
+  Megaphone, PenTool, Smile, Trash2, BookOpen,
 } from 'lucide-react';
 
 import { toJpeg } from 'html-to-image';
@@ -78,7 +78,7 @@ const ANIMALS = ['🦊','🐻','🐰','🦌','🦉','🐱','🐿️','🦔'];
 
 interface Story { id:string; forestId?:string; timestamp?:string; type:'image'|'video'|'text'; src?:string; duration?:number; textContent?:string; bgGradient?:string; reactions?:Record<string, string[]>; userId?:string; }
 interface ChatMsg { id:string; senderName:string; avatar:string; text:string; timestamp:string; isMe?:boolean; imageUrl?:string; replyTo?:{senderName:string;text:string}; userId?:string; }
-interface ColumnData { title:string; content:string; authorName:string; authorRealName:string; authorRole:string; authorAvatar:string; timestamp:string; claps:number; }
+interface ColumnData { title:string; content:string; authorName:string; authorRealName:string; authorRole:string; authorAvatar:string; timestamp:string; claps:number; userId?:string; }
 interface UserProfile { username:string; realName:string; avatar:string; }
 interface Forest { id:string; name:string; emoji:string; count:number; image:string; }
 
@@ -294,7 +294,7 @@ function StoryViewer({stories,username,avatar,onReact,uid,onDeleteStory}: {stori
 // ──────────────────────────────────────────────────
 // FOREST CAROUSEL
 // ──────────────────────────────────────────────────
-function ForestCarousel({items,onItemClick}:{items:{id:string;name:string;src:string;emoji:string}[];onItemClick:(id:string)=>void}) {
+function ForestCarousel({items,onItemClick,dutyForestId}:{items:{id:string;name:string;src:string;emoji:string}[];onItemClick:(id:string)=>void;dutyForestId?:string}) {
   const [cur,setCur]=useState(Math.floor(items.length/2));
   const handleDrag=(_:any,info:PanInfo)=>{
     if(info.offset.x<-40||info.velocity.x<-400) setCur(p=>Math.min(items.length-1,p+1));
@@ -306,14 +306,24 @@ function ForestCarousel({items,onItemClick}:{items:{id:string;name:string;src:st
       <div className="relative w-full h-40 flex items-center justify-center pointer-events-none mt-2">
         {items.map((item,i)=>{
           const off=i-cur, abs=Math.abs(off), active=off===0;
+          const isDuty = item.id === dutyForestId;
           return (
             <motion.div key={item.id} className="absolute flex flex-col items-center pointer-events-auto cursor-pointer"
               animate={{x:off*85,scale:active?1.3:Math.max(0.6,1-abs*0.15),opacity:active?1:Math.max(0,0.8-abs*0.25),zIndex:20-abs}}
               transition={{type:'spring',stiffness:350,damping:30}}
               onClick={()=>active?onItemClick(item.id):setCur(i)}>
-              <div className={cn('w-[80px] h-[80px] rounded-full overflow-hidden transition-all',
-                active?'border-[3px] border-emerald-500 ring-4 ring-emerald-500/20 shadow-[0_8px_20px_rgba(16,185,129,0.3)]':'border-2 border-white shadow-sm')}>
-                <img src={item.src} alt={item.name} className="w-full h-full object-cover bg-slate-100" draggable={false}/>
+              <div className="relative">
+                <div className={cn('w-[80px] h-[80px] rounded-full overflow-hidden transition-all',
+                  active?'border-[3px] border-emerald-500 ring-4 ring-emerald-500/20 shadow-[0_8px_20px_rgba(16,185,129,0.3)]':'border-2 border-white shadow-sm',
+                  isDuty&&!active?'ring-2 ring-amber-400':''
+                )}>
+                  <img src={item.src} alt={item.name} className="w-full h-full object-cover bg-slate-100" draggable={false}/>
+                </div>
+                {isDuty && (
+                  <div className="absolute -top-3 -right-2 bg-amber-400 text-[14px] leading-none p-1.5 rounded-full shadow-md border-2 border-white transform rotate-12 z-50 animate-bounce">
+                    👑
+                  </div>
+                )}
               </div>
             </motion.div>
           );
@@ -334,24 +344,36 @@ function ForestCarousel({items,onItemClick}:{items:{id:string;name:string;src:st
 // ──────────────────────────────────────────────────
 // WEEKLY COLUMN CARD
 // ──────────────────────────────────────────────────
-function WeeklyColumnCard({weekInfo,columnData,onClick}:{weekInfo:{weekNum:number;forest:Forest};columnData?:ColumnData;onClick?:()=>void}) {
+function WeeklyColumnCard({weekInfo,columnData,onClick,isEmpty,onWrite}:{weekInfo:{weekNum:number;forest:Forest};columnData?:ColumnData;onClick?:()=>void;isEmpty?:boolean;onWrite?:()=>void}) {
   const f=weekInfo.forest;
-  return (
-    <div onClick={onClick} className="w-full bg-[#F3E8DA] rounded-[2rem] overflow-hidden flex relative shadow-sm border border-[#E6E2D6]/50 cursor-pointer hover:shadow-md transition-shadow h-44">
-      <div className="absolute right-0 top-0 bottom-0 w-[60%]">
-        <img src={f.image} alt={f.name} className="w-full h-full object-cover"/>
-        <div className="absolute inset-0 bg-gradient-to-r from-[#F3E8DA] via-[#F3E8DA]/80 to-transparent"/>
+  if(isEmpty) {
+    return (
+      <div className="w-full bg-slate-50 rounded-[2rem] overflow-hidden flex relative border-2 border-dashed border-slate-200 h-40 group cursor-pointer hover:bg-emerald-50 transition-colors" onClick={onWrite}>
+        <div className="relative z-10 p-5 flex flex-col justify-center items-center w-full h-full text-center">
+          <div className="w-14 h-14 mb-3 bg-white rounded-full flex items-center justify-center border-2 border-slate-200 shadow-sm group-hover:border-emerald-300 group-hover:text-emerald-500 transition-all text-slate-400">
+            <Plus size={28} className="group-hover:scale-110 transition-transform"/>
+          </div>
+          <p className="text-[13px] font-bold text-slate-400 group-hover:text-emerald-600 transition-colors leading-relaxed">이번 주 <strong className="text-emerald-600">'{f.name}'</strong> 담당자가<br/>터치해서 작성해 주세요</p>
+        </div>
       </div>
-      <div className="relative z-10 p-6 flex flex-col justify-between w-[80%] h-full">
+    );
+  }
+  return (
+    <div onClick={onClick} className="w-full bg-[#F3E8DA] rounded-[2rem] overflow-hidden flex relative shadow-sm border border-[#E6E2D6]/50 cursor-pointer hover:shadow-md transition-shadow h-40">
+      <div className="absolute right-0 top-0 bottom-0 w-[55%]">
+        <img src={f.image} alt={f.name} className="w-full h-full object-cover"/>
+        <div className="absolute inset-0 bg-gradient-to-r from-[#F3E8DA] via-[#F3E8DA]/90 to-transparent"/>
+      </div>
+      <div className="relative z-10 p-5 flex flex-col justify-between w-[85%] h-full">
         <div>
-          <div className="bg-[#8C5E45] text-white text-[10px] font-bold px-3 py-1.5 rounded-full w-fit mb-3">{f.name} 이야기</div>
-          <h3 className="text-[16px] font-bold text-[#5A3F2C] leading-snug break-keep line-clamp-2 pr-4">
+          <div className="bg-[#8C5E45] text-white text-[10px] font-bold px-3 py-1.5 rounded-full w-fit mb-2 shadow-sm">{f.name} 이야기</div>
+          <h3 className="text-[15px] font-bold text-[#5A3F2C] leading-snug break-keep line-clamp-2 pr-2">
             {columnData?columnData.title:`${f.name}에서 이번 주 칼럼 담당자를 정하고 있어요!`}
           </h3>
         </div>
         {columnData
           ? <div className="flex items-center gap-2 mt-auto">
-              <div className="w-8 h-8 rounded-full border-2 border-white overflow-hidden bg-white p-0.5 shrink-0">
+              <div className="w-8 h-8 rounded-full border-2 border-white overflow-hidden bg-white p-0.5 shrink-0 shadow-sm">
                 <img src={columnData.authorAvatar} className="w-full h-full object-contain" alt="author"/>
               </div>
               <div>
@@ -514,18 +536,18 @@ function StoryUploadModal({isOpen,onClose,onUpload}:{isOpen:boolean;onClose:()=>
 // ──────────────────────────────────────────────────
 // COLUMN WRITE MODAL
 // ──────────────────────────────────────────────────
-function ColumnWriteModal({isOpen,onClose,onSave,profile}:{isOpen:boolean;onClose:()=>void;onSave:(d:ColumnData)=>void;profile:UserProfile}) {
-  const [title,setTitle]=useState('');
-  const [content,setContent]=useState('');
-  const [authorName,setAuthorName]=useState(profile.username);
-  const [authorRole,setAuthorRole]=useState('커뮤니티 멤버');
+function ColumnWriteModal({isOpen,onClose,onSave,profile,initialData}:{isOpen:boolean;onClose:()=>void;onSave:(d:ColumnData)=>void;profile:UserProfile;initialData?:ColumnData|null}) {
+  const [title,setTitle]=useState(initialData?.title||'');
+  const [content,setContent]=useState(initialData?.content||'');
+  const [authorName,setAuthorName]=useState(initialData?.authorName||profile.username);
+  const [authorRole,setAuthorRole]=useState(initialData?.authorRole||'커뮤니티 멤버');
   if(!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-4">
       <motion.div initial={{opacity:0,scale:0.95,y:20}} animate={{opacity:1,scale:1,y:0}}
         className="bg-white w-full max-w-sm rounded-[2rem] p-6 shadow-2xl relative">
         <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-slate-100 rounded-full"><X size={16} className="text-slate-500"/></button>
-        <h2 className="text-xl font-bold text-emerald-700 flex items-center gap-2 mb-4"><PenTool size={20}/> 칼럼 작성하기</h2>
+        <h2 className="text-xl font-bold text-emerald-700 flex items-center gap-2 mb-4"><PenTool size={20}/> {initialData ? '칼럼 수정하기' : '칼럼 작성하기'}</h2>
         <div className="space-y-3">
           <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="칼럼 제목"
             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50"/>
@@ -533,13 +555,25 @@ function ColumnWriteModal({isOpen,onClose,onSave,profile}:{isOpen:boolean;onClos
             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm resize-none h-28 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"/>
           <div className="flex gap-3">
             <input value={authorName} onChange={e=>setAuthorName(e.target.value)} placeholder="닉네임"
-              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none"/>
-            <input value={profile.realName} disabled className="flex-1 bg-slate-100 text-slate-400 border border-slate-200 rounded-xl px-4 py-3 text-sm"/>
+              className="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none"/>
+            <input value={initialData?.authorRealName||profile.realName} disabled className="flex-1 min-w-0 bg-slate-100 text-slate-400 border border-slate-200 rounded-xl px-4 py-3 text-sm"/>
           </div>
           <input value={authorRole} onChange={e=>setAuthorRole(e.target.value)} placeholder="소속/역할"
             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none"/>
         </div>
-        <button onClick={()=>{if(title.trim()&&content.trim())onSave({title,content,authorName,authorRealName:profile.realName,authorRole,authorAvatar:profile.avatar,timestamp:new Date().toISOString(),claps:0});onClose();}}
+        <button onClick={()=>{
+          if(title.trim()&&content.trim()){
+            onSave({
+              title,content,authorName,authorRole,
+              authorRealName:initialData?.authorRealName||profile.realName,
+              authorAvatar:initialData?.authorAvatar||profile.avatar,
+              timestamp:initialData?.timestamp||new Date().toISOString(),
+              claps:initialData?.claps||0,
+              userId:initialData?.userId
+            });
+            onClose();
+          }
+        }}
           disabled={!title.trim()||!content.trim()}
           className="w-full mt-5 bg-emerald-500 text-white font-bold py-3.5 rounded-xl hover:bg-emerald-600 disabled:opacity-50">게시하기</button>
       </motion.div>
@@ -550,9 +584,9 @@ function ColumnWriteModal({isOpen,onClose,onSave,profile}:{isOpen:boolean;onClos
 // ──────────────────────────────────────────────────
 // FOREST ROOM (Chat)
 // ──────────────────────────────────────────────────
-function ForestRoom({forest,onBack,messages,onSendMessage,onAddStory,isWeeklyTurn,currentColumnData,onWriteColumn,profile,forestStories,onReactStory,uid,onDeleteChat}:
+function ForestRoom({forest,onBack,messages,onSendMessage,onAddStory,isWeeklyTurn,currentColumnData,onWriteColumn,profile,forestStories,onReactStory,uid,isAdmin,onDeleteChat,onDeleteColumn}:
   {forest:Forest;onBack:()=>void;messages:ChatMsg[];onSendMessage:(t:string,img?:string,reply?:any)=>void;
-   onAddStory:(d:any)=>void;isWeeklyTurn:boolean;currentColumnData?:ColumnData;onWriteColumn:(d:ColumnData)=>void;profile:UserProfile;forestStories?:Story[];onReactStory?:(id:string,emoji:string)=>void;uid?:string;onDeleteChat?:(id:string)=>void}) {
+   onAddStory:(d:any)=>void;isWeeklyTurn:boolean;currentColumnData?:ColumnData;onWriteColumn:(d:ColumnData)=>void;profile:UserProfile;forestStories?:Story[];onReactStory?:(id:string,emoji:string)=>void;uid?:string;isAdmin?:boolean;onDeleteChat?:(id:string)=>void;onDeleteColumn?:(weekNum:number)=>void}) {
   const [text,setText]=useState('');
   const [isUploading,setIsUploading]=useState(false);
   const [isWritingColumn,setIsWritingColumn]=useState(false);
@@ -591,10 +625,12 @@ function ForestRoom({forest,onBack,messages,onSendMessage,onAddStory,isWeeklyTur
       {isWeeklyTurn&&(
         <div className="bg-emerald-100/80 text-emerald-800 px-4 py-3 flex items-center justify-between shrink-0 border-b border-emerald-200">
           <span className="text-[12px] font-bold">🎉 이번 주 칼럼 담당 숲이에요!</span>
-          <button onClick={()=>setIsWritingColumn(true)}
-            className="bg-emerald-600 text-white text-[11px] font-bold px-3 py-1.5 rounded-full hover:bg-emerald-700">
-            {currentColumnData?'수정하기':'작성하기'}
-          </button>
+          {(!currentColumnData || currentColumnData.userId === uid || isAdmin) && (
+            <button onClick={()=>setIsWritingColumn(true)}
+              className="bg-emerald-600 text-white text-[11px] font-bold px-3 py-1.5 rounded-full hover:bg-emerald-700">
+              {currentColumnData?'수정하기':'작성하기'}
+            </button>
+          )}
         </div>
       )}
       <div className="absolute top-[84px] left-1/2 -translate-x-1/2 z-0 w-[90%] max-w-sm pointer-events-none">
@@ -681,8 +717,56 @@ function ForestRoom({forest,onBack,messages,onSendMessage,onAddStory,isWeeklyTur
         {isUploading&&<StoryUploadModal isOpen={isUploading} onClose={()=>setIsUploading(false)} onUpload={d=>{onAddStory(d);setIsUploading(false);}}/>}
       </AnimatePresence>
       <AnimatePresence>
-        <ColumnWriteModal isOpen={isWritingColumn} onClose={()=>setIsWritingColumn(false)} onSave={onWriteColumn} profile={profile}/>
+        <ColumnWriteModal isOpen={isWritingColumn} onClose={()=>setIsWritingColumn(false)} onSave={onWriteColumn} profile={profile} initialData={currentColumnData} />
       </AnimatePresence>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────
+// COLUMN ARCHIVE MODAL (다시 읽기)
+// ──────────────────────────────────────────────────
+function ColumnArchiveModal({ isOpen, onClose, columns, onSelectColumn }: { isOpen: boolean; onClose: () => void; columns: (ColumnData & { weekNum: number })[]; onSelectColumn: (col: ColumnData & { weekNum: number }) => void }) {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[250] bg-white flex flex-col animate-in slide-in-from-bottom-10 fade-in duration-300">
+      <div className="sticky top-0 bg-white/90 backdrop-blur-md border-b border-gray-100 p-4 pb-3 flex items-center z-10 shrink-0 shadow-sm">
+        <button onClick={onClose} className="p-2 -ml-2 text-gray-800 mr-2 rounded-full hover:bg-slate-100"><ChevronLeft size={24}/></button>
+        <h1 className="text-lg font-extrabold text-slate-800 mx-auto flex items-center gap-2"><BookOpen className="text-[#8C5E45]" size={20}/> 숲 이야기 보관소</h1>
+        <div className="w-8"/>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50 pb-safe">
+        {columns.length === 0 ? (
+          <div className="text-center py-20 text-slate-400 text-sm">아직 작성된 칼럼이 없습니다.</div>
+        ) : (
+          columns.map(col => {
+            const f = FORESTS.find(x => x.name === col.authorRole.split(' ')[0]) || FORESTS[0]; // fallback
+            return (
+              <div key={col.weekNum} onClick={() => onSelectColumn(col)} className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 flex gap-4 items-center cursor-pointer hover:shadow-md transition-all active:scale-[0.98]">
+                <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200/60 shadow-inner">
+                  <img src={f.image} alt={f.name} className="w-full h-full object-cover"/>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-bold text-white bg-[#8C5E45] px-2 py-0.5 rounded-md leading-none">{col.weekNum}주차</span>
+                    <span className="text-[11px] font-medium text-slate-500 truncate">{col.authorRole}</span>
+                  </div>
+                  <h3 className="text-[15px] font-bold text-slate-800 truncate mb-1 pr-2">{col.title}</h3>
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                    <div className="w-4 h-4 rounded-full overflow-hidden bg-slate-200">
+                      <img src={col.authorAvatar} alt="author" className="w-full h-full object-cover"/>
+                    </div>
+                    <span>{col.authorName}</span>
+                    <span className="mx-1 opacity-50">·</span>
+                    <span className="flex items-center gap-0.5">❤️ {col.claps || 0}</span>
+                  </div>
+                </div>
+                <ChevronRight size={18} className="text-slate-300 shrink-0"/>
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
@@ -692,8 +776,8 @@ function ForestRoom({forest,onBack,messages,onSendMessage,onAddStory,isWeeklyTur
 // ──────────────────────────────────────────────────
 interface ColumnComment { id: string; uid: string; authorName: string; authorAvatar: string; text: string; timestamp: any; }
 
-function ColumnDetailModal({ weekNum, columnData, user, userData, profile, onClose }:
-  { weekNum: number; columnData: ColumnData; user: any; userData: any; profile: UserProfile | null; onClose: () => void; }) {
+function ColumnDetailModal({ weekNum, columnData, user, userData, profile, onClose, onEdit, onDelete }:
+  { weekNum: number; columnData: ColumnData; user: any; userData: any; profile: UserProfile | null; onClose: () => void; onEdit?: () => void; onDelete?: () => void; }) {
 
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
@@ -703,6 +787,9 @@ function ColumnDetailModal({ weekNum, columnData, user, userData, profile, onClo
   const [isSending, setIsSending] = useState(false);
   const commentEndRef = useRef<HTMLDivElement>(null);
   const uid = user?.uid || 'anon';
+  const role = userData?.role || '';
+
+  const canManage = columnData.userId === uid || role === 'admin';
 
   // Listen to likes
   useEffect(() => {
@@ -783,8 +870,16 @@ function ColumnDetailModal({ weekNum, columnData, user, userData, profile, onClo
         <div className="overflow-y-auto flex-1">
           {/* Header */}
           <div className="px-6 pt-3 pb-5 border-b border-slate-100">
-            <span className="bg-[#8C5E45] text-white text-[10px] font-bold px-3 py-1 rounded-full">이번 주 숲 이야기</span>
-            <h2 className="text-[22px] font-extrabold text-slate-800 leading-snug break-keep mt-3 mb-4">{columnData.title}</h2>
+            <div className="flex justify-between items-center mb-3">
+              <span className="bg-[#8C5E45] text-white text-[10px] font-bold px-3 py-1 rounded-full">이번 주 숲 이야기</span>
+              {canManage && (
+                <div className="flex gap-3">
+                  {onEdit && <button onClick={onEdit} className="text-[12px] font-bold text-slate-400 hover:text-emerald-600 transition-colors">수정</button>}
+                  {onDelete && <button onClick={onDelete} className="text-[12px] font-bold text-slate-400 hover:text-rose-500 transition-colors">삭제</button>}
+                </div>
+              )}
+            </div>
+            <h2 className="text-[22px] font-extrabold text-slate-800 leading-snug break-keep mt-2 mb-4">{columnData.title}</h2>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-slate-100 bg-slate-50 shrink-0">
                 <img src={columnData.authorAvatar} alt="author" className="w-full h-full object-contain" />
@@ -888,6 +983,9 @@ const ForestCommunityView = ({ onBack, user, userData, onShowToast }: { onBack?:
   const [allChats, setAllChats] = useState<Record<string, ChatMsg[]>>({});
   const [weeklyColumns, setWeeklyColumns] = useState<Record<number, ColumnData>>({});
   const [selectedColumnData, setSelectedColumnData] = useState<(ColumnData & { weekNum?: number }) | null>(null);
+  const [isWritingColumnMain, setIsWritingColumnMain] = useState(false);
+  const [editingColumn, setEditingColumn] = useState<(ColumnData & {weekNum?: number})|null>(null);
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
 
   const activeForest = FORESTS.find(f => f.id === activeForestId);
   const weekInfo = useMemo(() => getCurrentWeekInfo(), []);
@@ -999,11 +1097,15 @@ const ForestCommunityView = ({ onBack, user, userData, onShowToast }: { onBack?:
         onShowToast?.("사진 속성에 따라 수 초가 걸릴 수 있습니다..");
         finalImageUrl = await uploadImage(imageUrl, `forest_chats/${activeForestId}/${Date.now()}`);
       }
+      // Always use the real name from userData (Firestore) first, fallback to profile.username
+      const senderName = userData?.name || profile.username || '익명';
+      const avatar = userData?.profile_image || profile.avatar;
+
       const payload: any = {
         forestId: activeForestId,
         userId: user.uid || 'unknown',
-        senderName: profile.username,
-        avatar: profile.avatar,
+        senderName,
+        avatar,
         text,
         timestamp: serverTimestamp()
       };
@@ -1015,7 +1117,7 @@ const ForestCommunityView = ({ onBack, user, userData, onShowToast }: { onBack?:
       console.error("Send message failed:", err);
       onShowToast?.("메시지 전송에 실패했습니다.");
     }
-  }, [activeForestId, profile, user, onShowToast]);
+  }, [activeForestId, profile, user, userData, onShowToast]);
 
   const handleAddStory = useCallback(async (data: any) => {
     if (!activeForestId) return;
@@ -1054,17 +1156,20 @@ const ForestCommunityView = ({ onBack, user, userData, onShowToast }: { onBack?:
     try { await deleteDoc(doc(db, 'forest_stories', storyId)); } catch(e) { console.error(e); }
   }, []);
 
-  const handleWriteColumn = useCallback(async (data: ColumnData) => {
+  const handleWriteColumn = useCallback(async (data: ColumnData, optWeekNum?: number) => {
+    const targetWeekNum = optWeekNum ?? weekInfo.weekNum;
     try {
-      await setDoc(doc(db, 'weekly_columns', `week-${weekInfo.weekNum}`), {
+      await setDoc(doc(db, 'weekly_columns', `week-${targetWeekNum}`), {
         ...data,
-        weekNum: weekInfo.weekNum,
-        timestamp: serverTimestamp()
+        weekNum: targetWeekNum,
+        userId: data.userId || user?.uid, // Save the author UID permanently
+        timestamp: data.timestamp || serverTimestamp()
       });
+      console.log('Column saved', targetWeekNum);
     } catch (err) {
       console.error("Write column failed:", err);
     }
-  }, [weekInfo.weekNum]);
+  }, [weekInfo.weekNum, user]);
 
   const handleReactStory = useCallback(async (storyId: string, emoji: string) => {
     if (!user || !activeForestId) return;
@@ -1100,7 +1205,13 @@ const ForestCommunityView = ({ onBack, user, userData, onShowToast }: { onBack?:
           forestStories={forestStories[activeForest.id] || []}
           onReactStory={handleReactStory}
           uid={user?.uid}
+          isAdmin={userData?.role === 'admin'}
           onDeleteChat={handleDeleteChat}
+          onDeleteColumn={async (weekNum) => {
+            if (window.confirm('정말로 이 칼럼을 삭제하시겠습니까?')) {
+              await deleteDoc(doc(db, 'weekly_columns', `week-${weekNum}`));
+            }
+          }}
         />
       </div>
     );
@@ -1131,31 +1242,86 @@ const ForestCommunityView = ({ onBack, user, userData, onShowToast }: { onBack?:
 
         {/* 캐러셀 */}
         <div className="bg-white/80 rounded-[2rem] p-6 shadow-sm border border-slate-200 overflow-hidden">
-          <h3 className="text-sm font-semibold text-slate-600 mb-2 text-center uppercase tracking-wider">원하는 숲을 선택하세요</h3>
-          <ForestCarousel items={orbitForests} onItemClick={setActiveForestId}/>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wider">원하는 숲을 선택하세요</h3>
+          </div>
+          <ForestCarousel items={orbitForests} onItemClick={setActiveForestId} dutyForestId={weekInfo.forest.id}/>
           <p className="mt-2 text-[12px] text-slate-400 text-center">좌우로 스와이프해서 숲을 둘러보세요</p>
         </div>
 
-        {/* 이번 주 칼럼 */}
+        {/* 숲 이야기 다시 읽기 (스크롤 리스트) */}
         {(() => {
-          const currentCol = Object.values(weeklyColumns)[0] ?? weeklyColumns[weekInfo.weekNum];
+          const allCols = Object.entries(weeklyColumns)
+            .map(([w, c]) => ({ ...c, weekNum: Number(w) }))
+            .sort((a, b) => b.weekNum - a.weekNum);
+          
           return (
-            <div>
-              <h3 className="text-sm font-bold text-slate-700 mb-3 px-1">이번 주 숲 이야기 🌿</h3>
-              <WeeklyColumnCard
-                weekInfo={weekInfo}
-                columnData={currentCol}
-                onClick={() => {
-                  console.log('Card CLICKED!', currentCol); if (currentCol) {
-                    setSelectedColumnData({ ...currentCol, weekNum: weekInfo.weekNum });
-                  }
-                }}
-              />
+            <div className="-mx-4 px-4 pb-4 overflow-hidden">
+              <div className="flex items-center justify-between mb-3 px-1">
+                <h3 className="text-sm font-bold text-slate-700">숲 이야기 모아보기 📖</h3>
+                <button 
+                  onClick={() => setIsArchiveModalOpen(true)}
+                  className="text-[12px] font-bold text-slate-400 hover:text-emerald-600 transition-colors flex items-center"
+                >
+                  전체보기 <ChevronRight size={14}/>
+                </button>
+              </div>
+              
+              <div className="flex gap-4 overflow-x-auto pb-4 pt-1 px-1 -mx-1 snap-x" style={{scrollbarWidth:'none'}}>
+                {!weeklyColumns[weekInfo.weekNum] && (
+                  <div className="snap-start shrink-0 w-[260px]">
+                    <WeeklyColumnCard isEmpty weekInfo={weekInfo} onWrite={() => setIsWritingColumnMain(true)} />
+                  </div>
+                )}
+                {allCols.length === 0 && weeklyColumns[weekInfo.weekNum] ? null : (
+                  allCols.map(col => {
+                    // find forest matching the authorRole or default
+                    const fallbackForestName = col.authorRole.split(' ')[0];
+                    const f = FORESTS.find(x => x.name === fallbackForestName) || FORESTS[0];
+                    
+                    return (
+                      <div key={col.weekNum} className="snap-start shrink-0 w-[260px]">
+                        <WeeklyColumnCard
+                          weekInfo={{ weekNum: col.weekNum, forest: f }}
+                          columnData={col}
+                          onClick={() => setSelectedColumnData(col)}
+                        />
+                      </div>
+                    );
+                  })
+                )}
+                {/* 패딩용 투명 요소 */}
+                <div className="shrink-0 w-2" />
+              </div>
             </div>
           );
         })()}
 
-        
+        {/* Column Archive Modal */}
+        <ColumnArchiveModal 
+          isOpen={isArchiveModalOpen}
+          onClose={() => setIsArchiveModalOpen(false)}
+          columns={Object.entries(weeklyColumns).map(([w, c]) => ({ ...c, weekNum: Number(w) })).sort((a,b) => b.weekNum - a.weekNum)}
+          onSelectColumn={(col) => setSelectedColumnData(col)}
+        />
+
+        {/* Column Write Modal from main screen */}
+        <AnimatePresence>
+          {isWritingColumnMain && profile && (
+            <ColumnWriteModal
+              isOpen={isWritingColumnMain}
+              onClose={() => { setIsWritingColumnMain(false); setEditingColumn(null); }}
+              onSave={(data) => {
+                handleWriteColumn(data, editingColumn ? editingColumn.weekNum : undefined);
+                setIsWritingColumnMain(false);
+                setEditingColumn(null);
+                setSelectedColumnData(null); // Close the detail modal if it was open
+              }}
+              profile={profile}
+              initialData={editingColumn}
+            />
+          )}
+        </AnimatePresence>
 
         {/* Column Detail Modal — Full Featured */}
         <AnimatePresence>
@@ -1167,6 +1333,21 @@ const ForestCommunityView = ({ onBack, user, userData, onShowToast }: { onBack?:
               userData={userData}
               profile={profile}
               onClose={() => setSelectedColumnData(null)}
+              onEdit={() => {
+                setEditingColumn(selectedColumnData);
+                setIsWritingColumnMain(true);
+              }}
+              onDelete={async () => {
+                if (window.confirm('정말로 이 칼럼을 삭제하시겠습니까?\n삭제된 내용은 복구할 수 없습니다.')) {
+                  try {
+                    await deleteDoc(doc(db, 'weekly_columns', `week-${selectedColumnData.weekNum ?? weekInfo.weekNum}`));
+                    setSelectedColumnData(null); // Close modal
+                  } catch (e) {
+                    console.error(e);
+                    alert("삭제 실패했습니다.");
+                  }
+                }
+              }}
             />
           )}
         </AnimatePresence>

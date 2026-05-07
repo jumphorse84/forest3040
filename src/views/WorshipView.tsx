@@ -112,22 +112,7 @@ const WorshipView = ({ user, worships, onNavigateToDetail, onNavigateToAdd, onSh
           </article>
         )}
 
-        {/* Search Bar */}
-        <div className="relative group">
-          <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
-            <Sparkles size={20} className="text-primary/60 group-focus-within:text-primary transition-colors" />
-          </div>
-          <input 
-            type="text" 
-            placeholder="제목, 부제목, 본문 검색..."
-            className="w-full bg-white border border-surface-container-highest py-4 pl-14 pr-14 rounded-full text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
-          />
-          <div className="absolute inset-y-0 right-5 flex items-center">
-            <button className="p-1 text-on-surface-variant hover:text-primary transition-colors">
-              <SlidersHorizontal size={20} />
-            </button>
-          </div>
-        </div>
+
 
         {/* Previous Worship List */}
         <div className="space-y-4 pb-10">

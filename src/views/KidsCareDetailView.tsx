@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronLeft, Baby, MapPin, Clock, Users, Megaphone, CheckCircle2, X, ChevronDown, ChevronUp, Phone, AlertTriangle, User } from 'lucide-react';
-import { doc, updateDoc, collection, onSnapshot, query, where, deleteField } from 'firebase/firestore';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronLeft, Baby, MapPin, Clock, Users, Megaphone, CheckCircle2, X, ChevronDown, ChevronUp, Phone, AlertTriangle, User, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { doc, updateDoc, collection, onSnapshot, query, where, deleteField, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const STATUS_STEPS = [
@@ -17,15 +17,20 @@ function getOverallStatus(children: any[]): string {
   return 'pending';
 }
 
-export default function KidsCareDetailView({ kidsCareId, kidsCares, user, onBack, onShowToast, onNavigateToApply }: any) {
+export default function KidsCareDetailView({ kidsCareId, kidsCares, user, onBack, onShowToast, onNavigateToApply, onNavigateToEdit }: any) {
   const [myApplication, setMyApplication] = useState<any>(null);
   const [loadingApp, setLoadingApp] = useState(true);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const [queryError, setQueryError] = useState<string | null>(null);
 
   const careData = kidsCares.find((c: any) => c.id === kidsCareId);
+  const isAdminOrLeader = user?.role === 'admin' || user?.role === 'pastor' || user?.role === 'leader';
 
   useEffect(() => {
     if (!user?.uid || !kidsCareId) { setLoadingApp(false); return; }
@@ -84,32 +89,121 @@ export default function KidsCareDetailView({ kidsCareId, kidsCares, user, onBack
     );
   }
 
+  const todayStr = new Date().toISOString().split('T')[0];
+  const isPast = careData?.date < todayStr;
+
   const overallStatus = myApplication ? getOverallStatus(myApplication.children || []) : null;
   const statusIndex = overallStatus ? STATUS_STEPS.findIndex(s => s.key === overallStatus) : -1;
-  // Show fixed bottom button only when no application yet
-  const showFixedApplyButton = !loadingApp && !myApplication;
+  // Show fixed bottom button only when no application yet, and not past
+  const showFixedApplyButton = !loadingApp && !myApplication && !isPast;
+
+  const handleDelete = async () => {
+    if (!kidsCareId) return;
+    setIsDeleting(true);
+    try {
+      await deleteDoc(doc(db, 'kids_cares', kidsCareId));
+      onShowToast('돌봄 프로그램이 삭제되었습니다.');
+      onBack();
+    } catch (e) {
+      console.error(e);
+      onShowToast('삭제 중 오류가 발생했습니다.');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-[#FAF9F6] overflow-y-auto z-40 font-body">
-      <nav className="sticky top-0 z-50 bg-[#FAF9F6]/90 backdrop-blur-xl px-6 py-4 max-w-md mx-auto flex items-center gap-3">
-        <button onClick={onBack} className="active:scale-95 transition-transform p-1">
-          <ChevronLeft className="text-[#0F6045] w-6 h-6" />
-        </button>
-        <span className="font-headline font-bold text-lg text-[#0F6045]">돌봄 상세 안내</span>
+      <nav className="sticky top-0 z-50 bg-[#FAF9F6]/90 backdrop-blur-xl px-6 py-4 max-w-md mx-auto flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button onClick={onBack} className="active:scale-95 transition-transform p-1">
+            <ChevronLeft className="text-[#0F6045] w-6 h-6" />
+          </button>
+          <span className="font-headline font-bold text-lg text-[#0F6045]">돌봄 상세 안내</span>
+        </div>
+
+        {/* Three-dot menu (admin/leader only) */}
+        {isAdminOrLeader && (
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setShowMenu(v => !v)}
+              className="p-2 rounded-full hover:bg-surface-container-low transition-colors active:scale-90"
+            >
+              <MoreVertical size={22} className="text-[#0F6045]" />
+            </button>
+
+            {showMenu && (
+              <>
+                {/* Backdrop */}
+                <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                {/* Dropdown */}
+                <div className="absolute right-0 top-10 z-50 w-44 bg-white rounded-2xl shadow-xl border border-surface-container-low overflow-hidden">
+                  <button
+                    onClick={() => { setShowMenu(false); onNavigateToEdit && onNavigateToEdit(kidsCareId); }}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-bold text-on-surface hover:bg-surface-container-lowest transition-colors"
+                  >
+                    <Pencil size={16} className="text-primary" />
+                    수정하기
+                  </button>
+                  <div className="border-t border-surface-container-low" />
+                  <button
+                    onClick={() => { setShowMenu(false); setShowDeleteConfirm(true); }}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-sm font-bold text-error hover:bg-error/5 transition-colors"
+                  >
+                    <Trash2 size={16} className="text-error" />
+                    삭제하기
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </nav>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-6 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-7 w-full max-w-sm shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-error/10 flex items-center justify-center shrink-0">
+                <Trash2 size={24} className="text-error" />
+              </div>
+              <div>
+                <p className="font-extrabold text-on-surface font-headline">정말 삭제하시겠습니까?</p>
+                <p className="text-sm text-on-surface-variant mt-0.5">이 돌봄 프로그램과 관련 데이터가 모두 삭제됩니다.</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 py-3.5 rounded-2xl font-bold bg-surface-container-low text-on-surface transition-colors active:scale-95"
+              >취소</button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="flex-1 py-3.5 rounded-2xl font-bold bg-error text-white transition-all active:scale-95 disabled:opacity-60"
+              >{isDeleting ? '삭제 중...' : '삭제'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-md mx-auto px-5 space-y-5">
         {/* Hero */}
-        <section className="bg-gradient-to-br from-[#FEE3D5] to-[#ffc4b1] rounded-3xl p-7 relative overflow-hidden">
+        <section className={`bg-gradient-to-br ${isPast ? 'from-surface-container-high to-surface-container-low grayscale-[20%]' : 'from-[#FEE3D5] to-[#ffc4b1]'} rounded-3xl p-7 relative overflow-hidden`}>
           <div className="absolute -top-8 -right-8 opacity-10">
-            <Baby size={130} className="text-[#8b4932]" />
+            <Baby size={130} className={isPast ? 'text-outline' : 'text-[#8b4932]'} />
           </div>
           <div className="relative z-10">
-            <span className="inline-block bg-white/40 backdrop-blur-sm px-3 py-1 rounded-full text-[11px] font-bold text-[#8b4932] mb-3">{careData.date}</span>
-            <h1 className="text-2xl font-extrabold text-[#613b1c] font-headline leading-tight break-keep">
+            <div className="flex items-center gap-2 mb-3">
+              <span className={`inline-block bg-white/40 backdrop-blur-sm px-3 py-1 rounded-full text-[11px] font-bold ${isPast ? 'text-outline-variant' : 'text-[#8b4932]'}`}>{careData.date}</span>
+              {isPast && <span className="inline-block bg-surface-container-highest text-on-surface-variant px-3 py-1 rounded-full text-[11px] font-bold">종료됨</span>}
+            </div>
+            <h1 className={`text-2xl font-extrabold font-headline leading-tight break-keep ${isPast ? 'text-on-surface-variant' : 'text-[#613b1c]'}`}>
               {careData.title || '이번 주 키즈돌봄 안내'}
             </h1>
-            <p className="text-[#8b4932]/80 font-medium mt-1 text-sm">믿고 맡길 수 있는 안전한 돌봄</p>
+            <p className={`${isPast ? 'text-outline-variant' : 'text-[#8b4932]/80'} font-medium mt-1 text-sm`}>믿고 맡길 수 있는 안전한 돌봄</p>
           </div>
         </section>
 
@@ -233,47 +327,59 @@ export default function KidsCareDetailView({ kidsCareId, kidsCares, user, onBack
               </div>
             </section>
 
-            {/* Cancel */}
-            {!showCancelConfirm ? (
-              <button onClick={() => setShowCancelConfirm(true)}
-                className="w-full py-4 bg-surface-container-low text-on-surface-variant rounded-2xl font-bold text-sm active:scale-95 transition-all">
-                신청 취소하기
-              </button>
-            ) : (
-              <div className="bg-red-50 rounded-2xl p-5 border border-red-200 text-center space-y-3">
-                <p className="font-bold text-red-700">정말 신청을 취소하시겠습니까?</p>
-                <div className="flex gap-2">
-                  <button onClick={() => setShowCancelConfirm(false)} className="flex-1 py-3 bg-white border border-[#e0e0e0] rounded-xl font-bold text-sm">아니오</button>
-                  <button disabled={isCancelling}
-                    onClick={async () => {
-                      setIsCancelling(true);
-                      try {
-                        await updateDoc(doc(db, 'kids_applications', myApplication.id), { cancelled: true });
-                        // Remove the user's registration count for this kids_care event
-                        await updateDoc(doc(db, 'kids_cares', kidsCareId), {
-                          [`registrations.${user.uid}`]: deleteField()
-                        });
-                        onShowToast('신청이 취소되었습니다.');
-                        setShowCancelConfirm(false);
-                      } catch { onShowToast('취소 중 오류가 발생했습니다.'); }
-                      finally { setIsCancelling(false); }
-                    }}
-                    className="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold text-sm active:scale-95 transition-all">
-                    {isCancelling ? '처리 중...' : '네, 취소합니다'}
-                  </button>
+            {/* Cancel (Hidden if past) */}
+            {!isPast && (
+              !showCancelConfirm ? (
+                <button onClick={() => setShowCancelConfirm(true)}
+                  className="w-full py-4 bg-surface-container-low text-on-surface-variant rounded-2xl font-bold text-sm active:scale-95 transition-all">
+                  신청 취소하기
+                </button>
+              ) : (
+                <div className="bg-red-50 rounded-2xl p-5 border border-red-200 text-center space-y-3">
+                  <p className="font-bold text-red-700">정말 신청을 취소하시겠습니까?</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowCancelConfirm(false)} className="flex-1 py-3 bg-white border border-[#e0e0e0] rounded-xl font-bold text-sm">아니오</button>
+                    <button disabled={isCancelling}
+                      onClick={async () => {
+                        setIsCancelling(true);
+                        try {
+                          await updateDoc(doc(db, 'kids_applications', myApplication.id), { cancelled: true });
+                          // Remove the user's registration count for this kids_care event
+                          await updateDoc(doc(db, 'kids_cares', kidsCareId), {
+                            [`registrations.${user.uid}`]: deleteField()
+                          });
+                          onShowToast('신청이 취소되었습니다.');
+                          setShowCancelConfirm(false);
+                        } catch { onShowToast('취소 중 오류가 발생했습니다.'); }
+                        finally { setIsCancelling(false); }
+                      }}
+                      className="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold text-sm active:scale-95 transition-all">
+                      {isCancelling ? '처리 중...' : '네, 취소합니다'}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )
             )}
           </>
         ) : (
           /* ======== NO APPLICATION YET ======== */
-          <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-5 flex items-center justify-between">
-            <div>
-              <p className="font-extrabold text-[#0F6045] font-headline">사전 신청이 아직 없어요</p>
-              <p className="text-sm text-emerald-700/80 mt-0.5">지금 신청하고 안심하고 예배드리세요</p>
+          isPast ? (
+            <div className="bg-surface-container-lowest border border-surface-container rounded-3xl p-5 flex items-center justify-between">
+              <div>
+                <p className="font-extrabold text-on-surface-variant font-headline">종료된 프로그램입니다.</p>
+                <p className="text-sm text-outline mt-0.5">과거 프로그램은 새로 신청할 수 없습니다.</p>
+              </div>
+              <span className="text-3xl grayscale opacity-50">✨</span>
             </div>
-            <span className="text-3xl">✨</span>
-          </div>
+          ) : (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-5 flex items-center justify-between">
+              <div>
+                <p className="font-extrabold text-[#0F6045] font-headline">사전 신청이 아직 없어요</p>
+                <p className="text-sm text-emerald-700/80 mt-0.5">지금 신청하고 안심하고 예배드리세요</p>
+              </div>
+              <span className="text-3xl">✨</span>
+            </div>
+          )
         )}
 
         {/* Bottom spacer when fixed button is shown */}

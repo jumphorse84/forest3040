@@ -16,12 +16,41 @@ const MembersView = ({ user, users, forests, onOpenBoard, onShowToast, onMemberC
   const [activeMembersTab, setActiveMembersTab] = useState('all'); // all, ministry, forest
   const [expandedForests, setExpandedForests] = useState<Record<string, boolean>>({});
 
-  const searchResults = searchQuery
+  const memberSearchResults = searchQuery
     ? users.filter((u: any) => {
         const forest = forests.find((f: any) => f.forest_id === u.forest_id);
         const forestName = forest?.name || '';
-        return u.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        return u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                forestName.toLowerCase().includes(searchQuery.toLowerCase());
+      })
+    : [];
+
+  // Aggregate all children across all users (for kids tab)
+  const currentYear = new Date().getFullYear();
+  const allKids: any[] = [];
+  users.forEach((u: any) => {
+    if (!u.has_kids) return;
+    const children: any[] = Array.isArray(u.children) && u.children.length > 0 ? u.children : [];
+    children.forEach((child: any) => {
+      allKids.push({
+        ...child,
+        parentName: u.name,
+        parentUid: u.uid,
+        forestId: u.forest_id,
+        forestName: forests.find((f: any) => f.forest_id === u.forest_id)?.name || '소속 없음',
+      });
+    });
+  });
+  allKids.sort((a, b) => parseInt(b.birthYear, 10) - parseInt(a.birthYear, 10));
+
+  const kidsSearchResults = searchQuery
+    ? allKids.filter(kid => {
+        const q = searchQuery.toLowerCase();
+        return (kid.name || '').toLowerCase().includes(q) ||
+               kid.parentName.toLowerCase().includes(q) ||
+               kid.forestName.toLowerCase().includes(q) ||
+               (kid.birthYear || '').includes(q) ||
+               (kid.notes || '').toLowerCase().includes(q);
       })
     : [];
 
@@ -69,7 +98,8 @@ const MembersView = ({ user, users, forests, onOpenBoard, onShowToast, onMemberC
         {[
           { id: 'all', label: '전체' },
           { id: 'ministry', label: '사역' },
-          { id: 'forest', label: '숲그룹' }
+          { id: 'forest', label: '숲그룹' },
+          { id: 'kids', label: '👶 키즈' },
         ].map(tab => (
           <button
             key={tab.id}
@@ -92,7 +122,7 @@ const MembersView = ({ user, users, forests, onOpenBoard, onShowToast, onMemberC
         </div>
         <input
           type="text"
-          placeholder="이름으로 검색하세요..."
+          placeholder={activeMembersTab === 'kids' ? '이름, 부모, 숲 이름으로 검색...' : '이름으로 검색하세요...'}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full pl-14 pr-5 py-4 bg-surface-container-lowest squircle shadow-[0_4px_20px_rgba(0,0,0,0.03)] border-none focus:ring-2 focus:ring-primary/30 transition-all font-body text-on-surface placeholder:text-outline-variant outline-none"
@@ -100,20 +130,65 @@ const MembersView = ({ user, users, forests, onOpenBoard, onShowToast, onMemberC
       </div>
 
       {searchQuery ? (
-        <div className="bg-surface-container-lowest p-3 squircle shadow-sm">
-          {searchResults.length > 0 ? (
-            <div className="space-y-1">
-              {searchResults.map((member: any) => (
-                <MemberRow key={member.uid} member={member} forests={forests} onClick={() => onMemberClick?.(member)} />
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-10 opacity-70">
-              <UserCircle size={40} className="text-outline mb-3" />
-              <p className="text-on-surface-variant text-sm font-medium">검색 결과가 없습니다.</p>
-            </div>
-          )}
-        </div>
+        activeMembersTab === 'kids' ? (
+          // ── 키즈 검색 결과 ──────────────────────────
+          <div className="space-y-3">
+            {kidsSearchResults.length > 0 ? (
+              <div className="bg-surface-container-lowest p-3 squircle shadow-sm space-y-2">
+                <p className="text-[11px] font-extrabold text-outline uppercase tracking-widest px-3 pb-1">
+                  키즈 검색 결과 · {kidsSearchResults.length}명
+                </p>
+                {kidsSearchResults.map((kid: any, idx: number) => {
+                  const age = kid.birthYear ? currentYear - parseInt(kid.birthYear, 10) : null;
+                  return (
+                    <div key={`s-${kid.parentUid}-${kid.id || idx}`} className="flex items-center gap-4 p-3 rounded-2xl hover:bg-surface-container-low transition-colors">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl shadow-sm shrink-0 ${kid.gender === 'male' ? 'bg-blue-100' : 'bg-pink-100'}`}>
+                        {kid.gender === 'male' ? '👦' : '👧'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-bold text-on-surface text-sm">{kid.name || '(이름 미입력)'}</p>
+                          {age !== null && (
+                            <span className="text-[10px] font-extrabold bg-primary/10 text-primary px-2 py-0.5 rounded-full">만 {age}세</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-on-surface-variant mt-0.5">
+                          {kid.birthYear && `${kid.birthYear}년생`}{kid.birthYear && ' · '}
+                          부모: <span className="font-semibold text-on-surface">{kid.parentName}</span>
+                        </p>
+                        {kid.notes && <p className="text-xs text-outline mt-0.5 truncate max-w-[200px]">📌 {kid.notes}</p>}
+                      </div>
+                      <div className="shrink-0">
+                        <span className="text-[10px] font-bold bg-surface-container text-on-surface-variant px-2.5 py-1 rounded-full">{kid.forestName}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-10 opacity-70">
+                <Baby size={40} className="text-outline mb-3" />
+                <p className="text-on-surface-variant text-sm font-medium">검색 결과가 없습니다.</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          // ── 멤버 검색 결과 ──────────────────────────
+          <div className="bg-surface-container-lowest p-3 squircle shadow-sm">
+            {memberSearchResults.length > 0 ? (
+              <div className="space-y-1">
+                {memberSearchResults.map((member: any) => (
+                  <MemberRow key={member.uid} member={member} forests={forests} onClick={() => onMemberClick?.(member)} />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-10 opacity-70">
+                <UserCircle size={40} className="text-outline mb-3" />
+                <p className="text-on-surface-variant text-sm font-medium">검색 결과가 없습니다.</p>
+              </div>
+            )}
+          </div>
+        )
       ) : (
         <div className="space-y-4">
           {activeMembersTab === 'all' && (
@@ -190,6 +265,68 @@ const MembersView = ({ user, users, forests, onOpenBoard, onShowToast, onMemberC
                 );
               })}
             </div>
+          )}
+
+          {activeMembersTab === 'kids' && (
+            allKids.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 opacity-70">
+                <Baby size={48} className="text-outline mb-4" />
+                <p className="text-on-surface-variant text-sm font-medium">등록된 키즈 정보가 없습니다.</p>
+                <p className="text-on-surface-variant text-xs mt-1">마이페이지 → 신앙 정보에서 자녀를 등록할 수 있어요.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Summary banner */}
+                <div className="bg-gradient-to-r from-pink-50 to-blue-50 border border-pink-100 rounded-2xl px-5 py-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-extrabold text-outline uppercase tracking-widest">키즈 현황</p>
+                    <p className="text-2xl font-extrabold text-on-surface mt-0.5">
+                      {allKids.length}<span className="text-sm font-bold text-on-surface-variant ml-1">명</span>
+                    </p>
+                  </div>
+                  <div className="flex gap-4 text-sm">
+                    <div className="text-center">
+                      <p className="text-2xl">{allKids.filter((k: any) => k.gender === 'male').length}</p>
+                      <p className="text-xs text-on-surface-variant font-bold">남아 👦</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl">{allKids.filter((k: any) => k.gender === 'female').length}</p>
+                      <p className="text-xs text-on-surface-variant font-bold">여아 👧</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Kids list */}
+                <div className="bg-surface-container-lowest p-3 squircle shadow-sm space-y-2">
+                  {allKids.map((kid: any, idx: number) => {
+                    const age = kid.birthYear ? currentYear - parseInt(kid.birthYear, 10) : null;
+                    return (
+                      <div key={`${kid.parentUid}-${kid.id || idx}`} className="flex items-center gap-4 p-3 rounded-2xl hover:bg-surface-container-low transition-colors">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl shadow-sm shrink-0 ${kid.gender === 'male' ? 'bg-blue-100' : 'bg-pink-100'}`}>
+                          {kid.gender === 'male' ? '👦' : '👧'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-bold text-on-surface text-sm">{kid.name || '(이름 미입력)'}</p>
+                            {age !== null && (
+                              <span className="text-[10px] font-extrabold bg-primary/10 text-primary px-2 py-0.5 rounded-full">만 {age}세</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-on-surface-variant mt-0.5">
+                            {kid.birthYear && `${kid.birthYear}년생`}{kid.birthYear && ' · '}
+                            부모: <span className="font-semibold text-on-surface">{kid.parentName}</span>
+                          </p>
+                          {kid.notes && <p className="text-xs text-outline mt-0.5 truncate max-w-[200px]">📌 {kid.notes}</p>}
+                        </div>
+                        <div className="shrink-0">
+                          <span className="text-[10px] font-bold bg-surface-container text-on-surface-variant px-2.5 py-1 rounded-full">{kid.forestName}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )
           )}
         </div>
       )}

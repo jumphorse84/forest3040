@@ -57,6 +57,7 @@
   --font-headline: "Plus Jakarta Sans", sans-serif;
   --font-body: "Manrope", sans-serif;
   --font-label: "Manrope", sans-serif;
+  --font-serif: "Noto Serif KR", serif;
 }
 
 @layer utilities {
@@ -120,3 +121,66 @@ body {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
+
+/* ─── Weather Animations ───────────────────────────────────────────── */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.1); }
+}
+@keyframes pan-clouds {
+  0% { transform: translateX(0) scale(1.2); }
+  50% { transform: translateX(-5%) scale(1.25); }
+  100% { transform: translateX(0) scale(1.2); }
+}
+@keyframes rain-fall {
+  0% { transform: translateY(-20px) rotate(15deg); opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translateY(200px) rotate(15deg); opacity: 0; }
+}
+@keyframes snow-fall {
+  0% { transform: translateY(-10px) translateX(0); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translateY(200px) translateX(20px); opacity: 0; }
+}
+@keyframes float-up {
+  0% { transform: translateY(20px) scale(0.8); opacity: 0; }
+  20% { opacity: 0.6; }
+  80% { opacity: 0.6; }
+  100% { transform: translateY(-120px) scale(1.3); opacity: 0; }
+}
+@keyframes cloud-drift {
+  0% { transform: translateX(100px); opacity: 0; }
+  10% { opacity: 0.7; }
+  90% { opacity: 0.7; }
+  100% { transform: translateX(-300px); opacity: 0; }
+}
+@keyframes star-twinkle {
+  0%, 100% { opacity: 0.2; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+.animate-pulse-slow { animation: pulse-slow 8s ease-in-out infinite; }
+.animate-pan-clouds { animation: pan-clouds 20s ease-in-out infinite; }
+
+/* 커스텀 애니메이션 */
+@keyframes leafSway {
+  0%, 100% { transform: rotate(-25deg) translateY(0); }
+  50% { transform: rotate(-20deg) translateY(-5px); }
+}
+
+@keyframes leafSwayReverse {
+  0%, 100% { transform: rotate(18deg) scaleX(-1) translateY(0); }
+  50% { transform: rotate(23deg) scaleX(-1) translateY(-5px); }
+}
+
+@keyframes sunlightShimmer {
+  0% { transform: translateX(-100%) rotate(-45deg); opacity: 0; }
+  20% { opacity: 0.3; }
+  50% { opacity: 0.5; }
+  80% { opacity: 0.3; }
+  100% { transform: translateX(100%) rotate(-45deg); opacity: 0; }
+}
+
+.animate-leaf-sway { animation: leafSway 4s ease-in-out infinite; }
+.animate-leaf-sway-reverse { animation: leafSwayReverse 4.5s ease-in-out infinite; }
+.animate-sunlight { animation: sunlightShimmer 8s infinite linear; }

@@ -1,18 +1,19 @@
 import React, { useState } from 'react';
-import { ChevronLeft, Home, BookOpen, User, Flame, X, Baby, MapPin, Clock, Users, TreePine, Megaphone, CheckCircle2 } from 'lucide-react';
-import { collection, addDoc, Timestamp } from 'firebase/firestore';
+import { ChevronLeft, Home, BookOpen, User, Flame, X, Baby, MapPin, Clock, Users, TreePine, Megaphone, CheckCircle2, Pencil } from 'lucide-react';
+import { collection, addDoc, updateDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
-export default function KidsCareAddView({ onBack, onShowToast, forests }: any) {
+export default function KidsCareAddView({ onBack, onShowToast, forests, initialData, careId }: any) {
+  const isEditMode = !!careId;
   const [formData, setFormData] = useState({
-    title: '',
-    date: new Date().toISOString().split('T')[0],
-    time: '오후 1:30 ~ 3:30',
-    location: '비전센터 2층 (키즈룸)',
-    target: '3세 ~ 미취학 아동',
-    teacher_name: '',
-    content: '',
-    assigned_forest_id: ''
+    title: initialData?.title ?? '',
+    date: initialData?.date ?? new Date().toISOString().split('T')[0],
+    time: initialData?.time ?? '오후 1:30 ~ 3:30',
+    location: initialData?.location ?? '비전센터 2층 (키즈룸)',
+    target: initialData?.target ?? '3세 ~ 미취학 아동',
+    teacher_name: initialData?.teacher_name ?? '',
+    content: initialData?.content ?? '',
+    assigned_forest_id: initialData?.assigned_forest_id ?? ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -24,16 +25,21 @@ export default function KidsCareAddView({ onBack, onShowToast, forests }: any) {
 
     try {
       setIsSubmitting(true);
-      await addDoc(collection(db, 'kids_cares'), {
-        ...formData,
-        status: '진행중', // or 모집중
-        createdAt: Timestamp.now()
-      });
-      onShowToast('돌봄 컨텐츠가 등록되었습니다.');
+      if (isEditMode) {
+        await updateDoc(doc(db, 'kids_cares', careId), { ...formData });
+        onShowToast('돌봄 콘텐츠가 수정되었습니다.');
+      } else {
+        await addDoc(collection(db, 'kids_cares'), {
+          ...formData,
+          status: '진행중',
+          createdAt: Timestamp.now()
+        });
+        onShowToast('돌봄 콘텐츠가 등록되었습니다.');
+      }
       onBack();
     } catch (error) {
-      console.error("Error adding kids care:", error);
-      onShowToast('등록에 실패했습니다.');
+      console.error('Error saving kids care:', error);
+      onShowToast(isEditMode ? '수정에 실패했습니다.' : '등록에 실패했습니다.');
     } finally {
       setIsSubmitting(false);
     }
@@ -44,7 +50,9 @@ export default function KidsCareAddView({ onBack, onShowToast, forests }: any) {
       <nav className="sticky top-0 w-full z-50 bg-[#FAF9F6]/80 backdrop-blur-xl flex justify-between items-center px-6 py-4 max-w-md mx-auto left-0 right-0">
         <div className="flex items-center gap-3 active:scale-95 duration-200 cursor-pointer" onClick={onBack}>
           <ChevronLeft className="text-primary-dim w-6 h-6" />
-          <span className="font-headline font-bold text-lg tracking-tight text-primary-dim">새 돌봄 컨텐츠 등록</span>
+          <span className="font-headline font-bold text-lg tracking-tight text-primary-dim">
+            {isEditMode ? '돌봄 콘텐츠 수정' : '새 돌봄 콘텐츠 등록'}
+          </span>
         </div>
       </nav>
 
@@ -121,8 +129,8 @@ export default function KidsCareAddView({ onBack, onShowToast, forests }: any) {
           onClick={handleSubmit} disabled={isSubmitting}
           className="w-full py-4 bg-primary text-on-primary rounded-2xl font-bold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 active:scale-95 transition-all disabled:opacity-70 flex justify-center items-center gap-2"
         >
-          {isSubmitting ? '등록 중...' : '등록 완료'}
-          {!isSubmitting && <CheckCircle2 size={20} />}
+          {isSubmitting ? (isEditMode ? '수정 중...' : '등록 중...') : (isEditMode ? '수정 완료' : '등록 완료')}
+          {!isSubmitting && (isEditMode ? <Pencil size={20} /> : <CheckCircle2 size={20} />)}
         </button>
       </main>
     </div>

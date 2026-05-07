@@ -11,12 +11,12 @@ import { db as firestoreDb, auth, storage } from '../firebase';
 import { MenuButton, ScheduleItem, MemberRow, OperationType, handleFirestoreError } from '../App';
 import { VISIT_CATEGORIES } from '../components/PastoralCardModal';
 
-const CalendarView = ({ user, schedules, onShowToast }: any) => {
+const CalendarView = ({ user, schedules = [], onShowToast }: any) => {
     const [today] = useState(new Date());
   const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   
   const [isAdding, setIsAdding] = useState(false);
-  const [newSchedule, setNewSchedule] = useState({ title: '', time: '', location: '', type: 'worship', d_day: 'D-?' });
+  const [newSchedule, setNewSchedule] = useState({ title: '', time: '', location: '', type: 'worship', d_day: 'D-?', date: '' });
 
   const [selectedScheduleForDetail, setSelectedScheduleForDetail] = useState<any>(null);
   const [isEditingDetail, setIsEditingDetail] = useState(false);
@@ -36,7 +36,8 @@ const CalendarView = ({ user, schedules, onShowToast }: any) => {
         title: editScheduleData.title,
         time: editScheduleData.time,
         location: editScheduleData.location,
-        type: editScheduleData.type
+        type: editScheduleData.type,
+        fullDate: editScheduleData.fullDate
       });
       
       onShowToast('일정이 수정되었습니다.');
@@ -60,20 +61,23 @@ const CalendarView = ({ user, schedules, onShowToast }: any) => {
   };
 
   const handleAddSchedule = async () => {
-    if (!newSchedule.title || !newSchedule.time || !newSchedule.location) {
+    if (!newSchedule.title || !newSchedule.time || !newSchedule.location || !newSchedule.date) {
       onShowToast('모든 필드를 입력해주세요.');
       return;
     }
     try {
-      const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
       await addDoc(collection(firestoreDb, 'schedules'), {
-        ...newSchedule,
-        fullDate: dateStr,
+        title: newSchedule.title,
+        time: newSchedule.time,
+        location: newSchedule.location,
+        type: newSchedule.type,
+        d_day: newSchedule.d_day,
+        fullDate: newSchedule.date,
         createdAt: Timestamp.now()
       });
       onShowToast('일정이 추가되었습니다.');
       setIsAdding(false);
-      setNewSchedule({ title: '', time: '', location: '', type: 'worship', d_day: 'D-?' });
+      setNewSchedule({ title: '', time: '', location: '', type: 'worship', d_day: 'D-?', date: '' });
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'schedules');
     }
@@ -109,7 +113,18 @@ const CalendarView = ({ user, schedules, onShowToast }: any) => {
     return schedules.filter((s: any) => s.fullDate === dateStr);
   };
 
-  const selectedSchedules = getSchedulesForDate(selectedDate);
+  const getSchedulesForMonth = (year: number, month: number) => {
+    const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
+    return schedules
+      .filter((s: any) => s.fullDate && s.fullDate.startsWith(monthStr))
+      .sort((a: any, b: any) => a.fullDate.localeCompare(b.fullDate));
+  };
+
+  const monthSchedules = getSchedulesForMonth(year, month);
+  const selectedDateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+
+  // When a date is clicked on the calendar, we could optionally scroll to it, 
+  // but for now we just keep the selectedDate highlighting on the calendar.
 
   const calculateDDay = (targetDateStr: string) => {
     if (!targetDateStr) return '';
@@ -183,34 +198,38 @@ const CalendarView = ({ user, schedules, onShowToast }: any) => {
           </div>
         </div>
 
-        {/* Selected Date Events */}
+        {/* Month's Events */}
         <div className="space-y-4">
           <div className="flex items-center justify-between px-2">
             <h3 className="text-lg font-bold text-on-surface font-headline">
-              {selectedDate.getMonth() + 1}월 {selectedDate.getDate()}일 일정
+              {month + 1}월 전체 일정
             </h3>
           </div>
 
-          {selectedSchedules.length === 0 ? (
+          {monthSchedules.length === 0 ? (
             <div className="bg-surface-container-lowest rounded-2xl p-8 text-center border border-surface-container-low border-dashed">
-              <p className="text-on-surface-variant text-sm font-medium">예정된 일정이 없습니다.</p>
+              <p className="text-on-surface-variant text-sm font-medium">이번 달 예정된 일정이 없습니다.</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {selectedSchedules.map((schedule: any) => (
-                <div key={schedule.id} onClick={() => setSelectedScheduleForDetail(schedule)} className="bg-surface-container-lowest p-5 rounded-2xl flex items-start gap-4 shadow-sm border border-surface-container-low cursor-pointer hover:bg-surface-container-low transition-colors">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
+              {monthSchedules.map((schedule: any) => {
+                const dayStr = schedule.fullDate ? parseInt(schedule.fullDate.split('-')[2], 10) : '';
+                const isSelectedSchedule = schedule.fullDate === selectedDateStr;
+                
+                return (
+                <div key={schedule.id} onClick={() => setSelectedScheduleForDetail(schedule)} className={`bg-surface-container-lowest p-5 rounded-2xl flex items-start gap-4 shadow-sm border cursor-pointer transition-colors ${isSelectedSchedule ? 'border-primary ring-1 ring-primary' : 'border-surface-container-low hover:bg-surface-container-low'}`}>
+                  <div className={`w-12 h-12 rounded-full flex flex-col items-center justify-center shrink-0 ${
+                    isSelectedSchedule ? 'bg-primary text-on-primary' :
                     schedule.type === 'worship' ? 'bg-primary-container text-on-primary-container' :
                     schedule.type === 'education' ? 'bg-secondary-container text-on-secondary-container' :
                     'bg-tertiary-container text-on-tertiary-container'
                   }`}>
-                    {schedule.type === 'worship' && <BookOpen size={20} />}
-                    {schedule.type === 'education' && <GraduationCap size={20} />}
-                    {schedule.type === 'volunteer' && <HeartHandshake size={20} />}
+                    <span className="text-[10px] font-bold opacity-80">{month + 1}월</span>
+                    <span className="text-[15px] font-black leading-tight">{dayStr}</span>
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-bold text-primary-dim">{schedule.time}</span>
+                      <span className={`text-xs font-bold ${isSelectedSchedule ? 'text-primary' : 'text-primary-dim'}`}>{schedule.time}</span>
                       <span className="bg-surface-container-high text-on-surface-variant text-[10px] font-bold px-2 py-0.5 rounded-full">{schedule.d_day && schedule.d_day !== 'D-?' ? schedule.d_day : calculateDDay(schedule.fullDate)}</span>
                     </div>
                     <h4 className="font-bold text-on-surface mb-1">{schedule.title}</h4>
@@ -219,7 +238,7 @@ const CalendarView = ({ user, schedules, onShowToast }: any) => {
                     </p>
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           )}
         </div>
@@ -228,7 +247,11 @@ const CalendarView = ({ user, schedules, onShowToast }: any) => {
       {/* Schedule Add Action */}
       {(user?.role === 'admin' || user?.role === 'leader' || user?.email === 'jumphorse@nate.com' || user?.email === 'seokgwan.ms01@gmail.com') && (
         <button 
-          onClick={() => setIsAdding(true)}
+          onClick={() => {
+            const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+            setNewSchedule({ ...newSchedule, date: dateStr });
+            setIsAdding(true);
+          }}
           className="fixed bottom-24 right-6 w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg shadow-primary/30 flex items-center justify-center active:scale-90 transition-transform z-50"
         >
           <Plus size={28} />
@@ -247,9 +270,14 @@ const CalendarView = ({ user, schedules, onShowToast }: any) => {
             </button>
           </header>
           <div className="p-5 space-y-4 flex-1 overflow-y-auto">
-            <div className="p-4 bg-primary/10 rounded-xl text-center border border-primary/20">
-              <span className="font-bold text-primary">{selectedDate.getFullYear()}년 {selectedDate.getMonth() + 1}월 {selectedDate.getDate()}일</span>
-              <p className="text-xs text-primary-dim mt-1">해당 날짜에 새 일정을 추가합니다.</p>
+            <div className="space-y-3">
+              <label className="block text-xs font-bold text-outline tracking-wider">일정 날짜</label>
+              <input 
+                type="date"
+                value={newSchedule.date} 
+                onChange={(e) => setNewSchedule({...newSchedule, date: e.target.value})}
+                className="w-full p-4 bg-surface-container-lowest border border-surface-container-low rounded-2xl font-bold outline-none font-sans"
+              />
             </div>
             
             <div className="space-y-3">
@@ -371,6 +399,16 @@ const CalendarView = ({ user, schedules, onShowToast }: any) => {
             ) : (
               <>
                 {/* Edit Mode Inputs */}
+                <div className="space-y-3">
+                  <label className="block text-xs font-bold text-outline tracking-wider">일정 날짜</label>
+                  <input 
+                    type="date"
+                    value={editScheduleData.fullDate} 
+                    onChange={(e) => setEditScheduleData({...editScheduleData, fullDate: e.target.value})}
+                    className="w-full p-4 bg-surface-container-lowest border border-surface-container-low rounded-2xl font-bold outline-none font-sans"
+                  />
+                </div>
+
                 <div className="space-y-3">
                   <label className="block text-xs font-bold text-outline tracking-wider">일정 분류</label>
                   <select

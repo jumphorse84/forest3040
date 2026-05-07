@@ -5,7 +5,7 @@ import {
   Menu, Bell, User, Flame, QrCode, Users, ClipboardList, Wallet, FileText,
   MapPin, ChevronRight, ChevronLeft, Home, LayoutGrid, BookOpen, Calendar, Baby,
   MessageCircle, ArrowLeft, CheckCircle2, XCircle, FileEdit, X, Search, Phone, Lock, UserCircle, Settings, Award, Clock, Heart, MessageSquare, Send, LogOut, Sparkles, TreePine, HeartHandshake, GraduationCap, History, Plus, Play,
-  SlidersHorizontal, Camera, Bookmark, MoreHorizontal, Music, Megaphone, Trash2, MoreVertical, PieChart, AlertTriangle, TrendingUp, Quote
+  SlidersHorizontal, Camera, Bookmark, MoreHorizontal, Music, Megaphone, Trash2, MoreVertical, PieChart, AlertTriangle, TrendingUp, Quote, Package, HandMetal
 } from 'lucide-react';
 
 const BIBLE_VERSES = [
@@ -16,7 +16,7 @@ const BIBLE_VERSES = [
   "내가 네게 명령한 것이 아니냐 강하고 담대하라 두려워하지 말며 놀라지 말라 (수 1:9)",
   "나의 영혼아 잠잠히 하나님만 바라라 무릇 나의 소망이 그로부터 나오는도다 (시 62:5)"
 ];
-import { collection, doc, setDoc, addDoc, getDoc, onSnapshot, query, where, orderBy, getDocFromServer, Timestamp, updateDoc, deleteDoc, arrayUnion, arrayRemove, limit } from 'firebase/firestore';
+import { collection, doc, setDoc, addDoc, getDoc, onSnapshot, query, where, orderBy, getDocFromServer, Timestamp, updateDoc, deleteDoc, arrayUnion, arrayRemove, limit, increment } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db as firestoreDb, auth, storage } from '../firebase';
 import { MenuButton, ScheduleItem, MemberRow, OperationType, handleFirestoreError } from '../App';
@@ -25,13 +25,235 @@ import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
 import { FamilyNewsEditorModal } from '../components/FamilyNewsEditorModal';
 
+const getLocalTodayStr = (date = new Date()) => {
+  const formatter = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = formatter.formatToParts(date);
+  const year = parts.find(p => p.type === 'year')?.value;
+  const month = parts.find(p => p.type === 'month')?.value;
+  const day = parts.find(p => p.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
+};
+
+const WeatherBackground = ({ weatherType, isDay }: { weatherType: string | null; isDay: boolean }) => {
+  if (!weatherType) return <div className="absolute top-0 right-0 -mr-8 -mt-8 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>;
+
+  return (
+    <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+      {weatherType === 'clear' && isDay && (
+        <>
+          <div className="absolute -top-10 -right-10 w-[200px] h-[200px] bg-amber-300/30 rounded-full blur-[60px] animate-pulse-slow"></div>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={`sun-${i}`} className="absolute bg-amber-100/40 rounded-full blur-[1.5px]" 
+                 style={{
+                   width: `${Math.random() * 6 + 3}px`,
+                   height: `${Math.random() * 6 + 3}px`,
+                   left: `${Math.random() * 60 + 40}%`,
+                   top: `${Math.random() * 80 + 20}%`,
+                   animation: `float-up ${Math.random() * 5 + 5}s ease-in-out infinite`,
+                   animationDelay: `${Math.random() * 5}s`
+                 }}
+            />
+          ))}
+        </>
+      )}
+      {weatherType === 'clear' && !isDay && (
+        <>
+          <div className="absolute -top-10 -left-10 w-[250px] h-[250px] bg-indigo-500/20 rounded-full blur-[80px] animate-pulse-slow"></div>
+          {Array.from({ length: 15 }).map((_, i) => (
+            <div key={`star-${i}`} className="absolute bg-white rounded-full blur-[1px]" 
+                 style={{
+                   width: `${Math.random() * 3 + 1}px`,
+                   height: `${Math.random() * 3 + 1}px`,
+                   left: `${Math.random() * 100}%`,
+                   top: `${Math.random() * 80}%`,
+                   animation: `star-twinkle ${Math.random() * 3 + 2}s ease-in-out infinite`,
+                   animationDelay: `${Math.random() * 5}s`,
+                   opacity: Math.random() * 0.5 + 0.3
+                 }}
+            />
+          ))}
+        </>
+      )}
+      {weatherType === 'cloudy' && (
+        <>
+          <div className="absolute -top-10 -left-10 w-[200px] h-[200px] bg-white/10 rounded-full blur-[60px] animate-pan-clouds"></div>
+          <div className="absolute top-10 -right-10 w-[250px] h-[250px] bg-white/5 rounded-full blur-[70px] animate-pan-clouds" style={{ animationDelay: '2s' }}></div>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={`cloud-${i}`} className={`absolute ${isDay ? 'bg-white/15' : 'bg-slate-800/40'} rounded-full blur-[15px]`} 
+                 style={{
+                   width: `${Math.random() * 120 + 80}px`,
+                   height: `${Math.random() * 50 + 30}px`,
+                   top: `${Math.random() * 50}%`,
+                   right: '-150px',
+                   animation: `cloud-drift ${Math.random() * 12 + 15}s linear infinite`,
+                   animationDelay: `${Math.random() * 8}s`
+                 }}
+            />
+          ))}
+        </>
+      )}
+      {weatherType === 'rain' && (
+        <>
+          <div className="absolute inset-0 bg-slate-900/10 mix-blend-multiply"></div>
+          {Array.from({ length: 20 }).map((_, i) => (
+            <div key={`rain-${i}`} className="absolute bg-blue-100/40 w-[1.5px] h-[25px] rounded-full" 
+                 style={{
+                   left: `${Math.random() * 100}%`,
+                   top: `-${Math.random() * 30 + 30}px`,
+                   animation: `rain-fall ${Math.random() * 0.4 + 0.6}s linear infinite`,
+                   animationDelay: `${Math.random() * 2}s`
+                 }}
+            />
+          ))}
+        </>
+      )}
+      {weatherType === 'snow' && (
+        <>
+          <div className="absolute inset-0 bg-slate-100/5"></div>
+          {Array.from({ length: 25 }).map((_, i) => (
+            <div key={`snow-${i}`} className="absolute bg-white/80 rounded-full blur-[1px]" 
+                 style={{
+                   width: `${Math.random() * 4 + 2}px`,
+                   height: `${Math.random() * 4 + 2}px`,
+                   left: `${Math.random() * 100}%`,
+                   top: `-10px`,
+                   animation: `snow-fall ${Math.random() * 3 + 2}s linear infinite`,
+                   animationDelay: `${Math.random() * 3}s`
+                 }}
+            />
+          ))}
+        </>
+      )}
+    </div>
+  );
+};
+
 const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares = [], users = [], forests = [], onNavigateToMyForestBoard, onNavigate, onNavigateToKidsDetail }: any) => {
 
+  const [weatherType, setWeatherType] = useState<string | null>(null);
+  const [isDay, setIsDay] = useState<boolean>(() => {
+    const hours = new Date().getHours();
+    return hours >= 6 && hours < 18;
+  });
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+
+  // Quick Menu New Badge States
+  const [latestTimes, setLatestTimes] = useState<Record<string, number>>({});
+  const [lastViewed, setLastViewed] = useState<Record<string, number>>(() => {
+    try { return JSON.parse(localStorage.getItem('forestQuickMenuViews') || '{}'); } catch { return {}; }
+  });
+
+
+  useEffect(() => {
+    const unsubArr: any[] = [];
+    if (user?.forest_id) {
+      unsubArr.push(onSnapshot(query(collection(firestoreDb, 'forest_posts'), where('forest_id', '==', user.forest_id), orderBy('date', 'desc'), limit(1)), snap => {
+        if (!snap.empty) {
+          const d = snap.docs[0].data().date;
+          const ts = d?.seconds ? d.seconds * 1000 : (typeof d === 'string' ? new Date(d).getTime() : 0);
+          setLatestTimes(p => ({ ...p, my_forest: ts }));
+        }
+      }));
+    }
+    unsubArr.push(onSnapshot(query(collection(firestoreDb, 'minutes'), orderBy('date', 'desc'), limit(1)), snap => {
+      if (!snap.empty) {
+        const d = snap.docs[0].data().date;
+        const ts = d?.seconds ? d.seconds * 1000 : (typeof d === 'string' ? new Date(d).getTime() : 0);
+        setLatestTimes(p => ({ ...p, minutes: ts }));
+      }
+    }));
+    unsubArr.push(onSnapshot(query(collection(firestoreDb, 'forest_items'), orderBy('created_at', 'desc'), limit(1)), snap => {
+      if (!snap.empty) {
+        const d = snap.docs[0].data().created_at;
+        const ts = typeof d === 'string' ? new Date(d).getTime() : 0;
+        setLatestTimes(p => ({ ...p, forest_items: ts }));
+      }
+    }));
+    unsubArr.push(onSnapshot(query(collection(firestoreDb, 'prayer_requests'), orderBy('created_at', 'desc'), limit(1)), snap => {
+      if (!snap.empty) {
+        const d = snap.docs[0].data().created_at;
+        const ts = d?.seconds ? d.seconds * 1000 : (typeof d === 'string' ? new Date(d).getTime() : 0);
+        setLatestTimes(p => ({ ...p, prayer: ts }));
+      }
+    }));
+    unsubArr.push(onSnapshot(query(collection(firestoreDb, 'worship_bulletins'), orderBy('date', 'desc'), limit(1)), snap => {
+      if (!snap.empty) {
+        const d = snap.docs[0].data().date;
+        const ts = typeof d === 'string' ? new Date(d).getTime() : (d?.seconds ? d.seconds * 1000 : 0);
+        setLatestTimes(p => ({ ...p, worship: ts }));
+      }
+    }));
+    return () => unsubArr.forEach(u => u());
+  }, [user?.forest_id]);
+
+  useEffect(() => {
+    if (surveys && surveys.length > 0) {
+      const latest = Math.max(...surveys.map((s:any) => s.createdAt?.seconds ? s.createdAt.seconds * 1000 : 0));
+      if (latest) setLatestTimes(p => ({ ...p, survey: latest }));
+    }
+  }, [surveys]);
+
+  useEffect(() => {
+    if (schedules && schedules.length > 0) {
+      const latest = Math.max(...schedules.map((s:any) => s.created_at ? new Date(s.created_at).getTime() : 0));
+      if (latest) setLatestTimes(p => ({ ...p, calendar: latest }));
+    }
+  }, [schedules]);
+
+  const latestTimesRef = useRef<Record<string, number>>({});
+  useEffect(() => {
+    latestTimesRef.current = latestTimes;
+  }, [latestTimes]);
+
+  const handleMenuClick = useCallback((id: string, action: () => void) => {
+    // 1. Read directly from localStorage to guarantee absolute latest state
+    let currentViews: Record<string, number> = {};
+    try {
+      currentViews = JSON.parse(localStorage.getItem('forestQuickMenuViews') || '{}');
+    } catch (e) {}
+
+    // 2. Calculate new values synchronously
+    const currentLatest = latestTimesRef.current[id] || 0;
+    const timeToSet = Math.max(Date.now(), currentLatest);
+    const next = { ...currentViews, [id]: timeToSet };
+
+    // 3. Save to localStorage synchronously BEFORE any React state or unmounts happen
+    localStorage.setItem('forestQuickMenuViews', JSON.stringify(next));
+
+    // 4. Update React state (might be discarded if unmounting)
+    setLastViewed(next);
+
+    // 5. Navigate
+    action();
+  }, []);
+
+  const hasNew = useCallback((id: string) => {
+    return (latestTimes[id] || 0) > (lastViewed[id] || 0);
+  }, [latestTimes, lastViewed]);
+
   const [isFruitModalOpen, setIsFruitModalOpen] = useState(false);
   const [familyNews, setFamilyNews] = useState<any[]>([]);
   const [isFamilyNewsModalOpen, setIsFamilyNewsModalOpen] = useState(false);
   const [editingFamilyNews, setEditingFamilyNews] = useState<any>(null);
+  const todayStr = getLocalTodayStr();
+  const fruitCacheKey = `daily_fruit_${user?.uid}_${todayStr}`;
+  const fruitCountKey = `daily_fruit_count_${user?.forest_id || user?.forest}`;
+
+  const [hasTodayFruit, setHasTodayFruit] = useState<boolean>(
+    () => localStorage.getItem(fruitCacheKey) === 'true'
+  );
+  const [dailyFruitCount, setDailyFruitCount] = useState<number>(
+    () => parseInt(localStorage.getItem(fruitCountKey) || '0', 10)
+  );
+  const [allDailyFruitsCount, setAllDailyFruitsCount] = useState<Record<string, number>>({});
+  const [wateringAnim, setWateringAnim] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [showAllMenus, setShowAllMenus] = useState(false);
 
   const [showDutyAlert, setShowDutyAlert] = useState(false);
   const [showFeeAlert, setShowFeeAlert] = useState(false);
@@ -90,11 +312,11 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
     qrData: user.uid ? `${user.uid}_${Date.now()}` : 'GUEST_QR'
   } : null;
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalTodayStr();
   const hasCheckedInToday = attendance?.some((a: any) => 
     a.uid === user.uid && 
     a.date?.toDate && 
-    a.date.toDate().toISOString().split('T')[0] === today
+    getLocalTodayStr(a.date.toDate()) === today
   );
 
   const activeSurveys = surveys?.filter((s: any) => s.status === 'active') || [];
@@ -162,7 +384,7 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
     return BIBLE_VERSES[dayOfYear % BIBLE_VERSES.length];
   }, []);
 
-  // Team fruit: sum of all registrations across all kids_care events assigned to user's forest
+  // Team fruit: sum of kids_care registrations + daily visit fruits
   const teamFruitCount = useMemo(() => {
     if (!user?.forest_id || !kidsCares) return 0;
     return kidsCares
@@ -172,6 +394,87 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
         return sum + regs.reduce((s: number, v: number) => s + v, 0);
       }, 0);
   }, [kidsCares, user?.forest_id]);
+
+  // Total display count = kidsCare fruits + all-time daily fruits count
+  const totalFruitCount = teamFruitCount + (allDailyFruitsCount[user?.forest_id || user?.forest] || 0);
+
+  // [최적화] 내 숲의 daily_fruits만 구독 (오늘 물주기 여부 & 내 숲 카운트 확인)
+  useEffect(() => {
+    const myForestId = user?.forest_id || user?.forest;
+    if (!myForestId || !user?.uid) return;
+    const todayStr = getLocalTodayStr();
+    const q = query(
+      collection(firestoreDb, 'daily_fruits'),
+      where('forest_id', '==', myForestId),
+      where('date', '==', todayStr)  // 오늘 날짜만 필터링
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const countMine = snap.size;
+      const todayMine = snap.docs.some(d => d.data().uid === user?.uid);
+      setDailyFruitCount(countMine); // 오늘 water 카운트만
+      setHasTodayFruit(todayMine);
+      localStorage.setItem(`daily_fruit_${user?.uid}_${todayStr}`, String(todayMine));
+      localStorage.setItem(`daily_fruit_count_${myForestId}`, String(countMine));
+    });
+    return () => unsub();
+  }, [user?.forest_id, user?.forest, user?.uid]);
+
+  // [최적화] 랭킹용: forest_fruit_counts 집계 문서 구독 (최대 11건)
+  useEffect(() => {
+    const q = collection(firestoreDb, 'forest_fruit_counts');
+    const unsub = onSnapshot(q, (snap) => {
+      const counts: Record<string, number> = {};
+      snap.docs.forEach(d => { counts[d.id] = d.data().count || 0; });
+      setAllDailyFruitsCount(counts);
+    });
+    return () => unsub();
+  }, []);
+
+  const leaderboard = useMemo(() => {
+    return (forests || []).map((f: any) => {
+      const kcFruits = (kidsCares || [])
+        .filter((c: any) => c.assigned_forest_id === f.id || c.assigned_forest_id === f.forest_id)
+        .reduce((sum: number, c: any) => {
+          const regs = Object.values(c.registrations || {}) as number[];
+          return sum + regs.reduce((s, v) => s + v, 0);
+        }, 0);
+      const dFruits = allDailyFruitsCount[f.id] || allDailyFruitsCount[f.forest_id] || 0;
+      return { forestName: f.name, count: kcFruits + dFruits, emoji: f.emoji };
+    }).sort((a: any, b: any) => b.count - a.count);
+  }, [forests, kidsCares, allDailyFruitsCount]);
+
+  const handleWaterTree = async () => {
+    const forestId = user?.forest_id || user?.forest;
+    if (!user?.uid || !forestId || hasTodayFruit) return;
+    const todayStr = getLocalTodayStr();
+
+    // Optimistic UI — show animation immediately
+    setHasTodayFruit(true);
+    setWateringAnim(true);
+    setShowConfetti(true);
+    setTimeout(() => setWateringAnim(false), 2000);
+    setTimeout(() => setShowConfetti(false), 3000);
+
+    try {
+      // 1) daily_fruits에 오늘 기록 추가
+      await addDoc(collection(firestoreDb, 'daily_fruits'), {
+        uid: user.uid,
+        name: user.name || '',
+        forest_id: forestId,
+        date: todayStr,
+        created_at: new Date().toISOString()
+      });
+      // 2) 집계 카운터 원자적 증가
+      // setDoc with merge:true → 문서가 없으면 생성, 있으면 count만 증가 (기존 값 초기화 방지)
+      const counterRef = doc(firestoreDb, 'forest_fruit_counts', forestId as string);
+      await setDoc(counterRef, { count: increment(1) }, { merge: true });
+    } catch (e) {
+      console.error('Water tree error:', e);
+      // Rollback on failure
+      setHasTodayFruit(false);
+      setWateringAnim(false);
+    }
+  };
 
   // Personal stamp: count of distinct Sundays user attended this month
   const currentMonth = new Date().getMonth();
@@ -185,13 +488,98 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
       .forEach((a: any) => {
         const d = new Date(a.date || a.timestamp?.toDate?.() || '');
         if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
-          sundays.add(a.date || d.toISOString().split('T')[0]);
+          sundays.add(a.date || getLocalTodayStr(d));
         }
       });
     return sundays.size;
   }, [attendance, user?.uid, currentMonth, currentYear]);
 
   const STAMP_TARGET = 10;
+
+  useEffect(() => {
+    const cachedWeather = sessionStorage.getItem('weatherType');
+    const cachedIsDay = sessionStorage.getItem('isDay');
+    const cachedTime = sessionStorage.getItem('weatherTimestamp');
+    const now = Date.now();
+
+    // 30분 이내의 캐시만 사용
+    if (cachedWeather && cachedIsDay && cachedTime && (now - Number(cachedTime) < 1800000)) {
+      setWeatherType(cachedWeather);
+      setIsDay(cachedIsDay === 'true');
+      return;
+    }
+
+    // ── 공통 헬퍼 ────────────────────────────────────────────────
+    // 실제 일출(6시) / 일몰(19시) 기준 낮·밤 판단 (KST 로컬 시간)
+    const getIsDayByTime = () => {
+      const h = new Date().getHours();
+      return h >= 6 && h < 19;
+    };
+
+    // 캐시 저장 (ttlMs: 캐시 유효 시간 밀리초)
+    const saveCache = (type: string, isDayVal: boolean, ttlMs = 0) => {
+      sessionStorage.setItem('weatherType', type);
+      sessionStorage.setItem('isDay', String(isDayVal));
+      // ttlMs > 0이면 타임스탬프를 과거로 조작해 캐시 수명을 단축
+      sessionStorage.setItem('weatherTimestamp', String(Date.now() - (1800000 - ttlMs)));
+    };
+
+    // ── geolocation 지원 여부 분기 ───────────────────────────────
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        // ① 위치 허용 → Open Meteo API 호출
+        async (position) => {
+          try {
+            const { latitude, longitude } = position.coords;
+            const res = await fetch(
+              `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`
+            );
+            const data = await res.json();
+
+            if (data?.current_weather?.weathercode !== undefined) {
+              const code = data.current_weather.weathercode;
+              const isDayData = data.current_weather.is_day === 1; // 실제 일출/일몰 기준
+              let type = 'clear';
+              if (code === 2 || code === 3) type = 'cloudy';
+              else if ([51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99].includes(code)) type = 'rain';
+              else if ([71, 73, 75, 77, 85, 86].includes(code)) type = 'snow';
+
+              setWeatherType(type);
+              setIsDay(isDayData);
+              saveCache(type, isDayData); // 30분 캐시
+            } else {
+              // API 응답은 왔으나 weathercode 없음 → 시간 기반 fallback
+              const isDayVal = getIsDayByTime();
+              setWeatherType('clear');
+              setIsDay(isDayVal);
+              saveCache('clear', isDayVal, 900000); // 15분 캐시 (재시도 빠르게)
+            }
+          } catch (e) {
+            // ② API 네트워크 오류 → fallback + 단축 캐시
+            console.error('Weather fetch error', e);
+            const isDayVal = getIsDayByTime();
+            setWeatherType('clear');
+            setIsDay(isDayVal);
+            saveCache('clear', isDayVal, 900000); // 15분 캐시
+          }
+        },
+        // ③ 위치 권한 거부 → clear + 캐시 저장
+        () => {
+          const isDayVal = getIsDayByTime();
+          setWeatherType('clear');
+          setIsDay(isDayVal);
+          saveCache('clear', isDayVal); // 30분 캐시 (재요청 방지)
+        },
+        { timeout: 7000, maximumAge: 600000 }
+      );
+    } else {
+      // ④ geolocation 미지원 환경 → clear + 캐시 저장
+      const isDayVal = getIsDayByTime();
+      setWeatherType('clear');
+      setIsDay(isDayVal);
+      saveCache('clear', isDayVal);
+    }
+  }, []);
 
   const getDynamicGreeting = () => {
     const now = new Date();
@@ -211,41 +599,69 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
 
   return (
     <>
-      {isMyBirthday && <Confetti width={width} height={height} recycle={false} numberOfPieces={500} gravity={0.15} style={{ zIndex: 9999, position: 'fixed', top: 0, left: 0 }} />}
+      {(isMyBirthday || showConfetti) && <Confetti width={width} height={height} recycle={!showConfetti} numberOfPieces={showConfetti ? 300 : 500} gravity={0.15} style={{ zIndex: 9999, position: 'fixed', top: 0, left: 0 }} />}
       {/* Greeting Card - Spiritual & Community Dashboard */}
-      <section className="relative overflow-hidden squircle p-8 bg-gradient-to-br from-[#0F6045] to-[#1a7858] text-white shadow-[0_15px_40px_rgba(15,96,69,0.2)] group">
-        <div className="absolute top-0 right-0 -mr-8 -mt-8 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700"></div>
+      <section className={`relative overflow-hidden squircle p-8 text-white shadow-[0_15px_40px_rgba(15,96,69,0.2)] group transition-colors duration-1000 ${
+        !isDay ? (
+          weatherType === 'cloudy' ? 'bg-gradient-to-br from-[#2a3035] to-[#141618]' :
+          weatherType === 'rain' ? 'bg-gradient-to-br from-[#1a2128] to-[#0a1014]' :
+          weatherType === 'snow' ? 'bg-gradient-to-br from-[#2e3b44] to-[#182329]' :
+          'bg-gradient-to-br from-[#1b193f] to-[#0a0821]'
+        ) : (
+          weatherType === 'cloudy' ? 'bg-gradient-to-br from-[#4b5b56] to-[#2c3d36]' :
+          weatherType === 'rain' ? 'bg-gradient-to-br from-[#2a3e4c] to-[#14232c]' :
+          weatherType === 'snow' ? 'bg-gradient-to-br from-[#6b8c8f] to-[#456366]' :
+          'bg-gradient-to-br from-[#0F6045] to-[#1a7858]'
+        )
+      }`}>
+        <WeatherBackground weatherType={weatherType} isDay={isDay} />
         <div className="relative z-10 flex flex-col h-full justify-between">
           
           <div className="mb-6">
-            <h2 className="text-[22px] font-extrabold font-headline mb-1 tracking-tight">
+            <h2 className="text-[22px] font-extrabold font-headline mb-1 tracking-tight drop-shadow-sm">
               {user.name} <span className="opacity-80 text-lg font-medium">님,</span>
             </h2>
-            <p className="text-[13px] font-medium opacity-90 leading-tight">
+            <p className="text-[13px] font-medium opacity-90 leading-tight drop-shadow-sm">
               {getDynamicGreeting()}
             </p>
           </div>
           
           {/* Bible Verse Area - elegant, no box, no quotes */}
           <div className="mb-8 border-l-2 border-white/30 pl-4">
-            <p className="text-[14px] font-medium leading-relaxed text-white/90 break-keep">
+            <p className="text-[14px] font-medium leading-relaxed text-white/90 break-keep drop-shadow-sm">
               {todaysVerse}
             </p>
           </div>
 
-          {/* Gamification / Community Tags Side by Side */}
-          <div className="grid grid-cols-2 gap-3 mt-auto">
-            <div 
+          {/* Gamification - Full-width fruit card + daily watering button */}
+          <div className="mt-auto flex items-stretch gap-3">
+            {/* Fruit count - clickable to modal */}
+            <div
               onClick={() => setIsFruitModalOpen(true)}
-              className="flex flex-col gap-1 bg-white/10 backdrop-blur-md p-3 rounded-2xl active:scale-[0.98] transition-transform cursor-pointer border border-white/5 hover:bg-white/20"
+              className="flex-1 flex flex-col justify-center gap-0.5 bg-white/10 p-3 rounded-2xl active:scale-[0.98] transition-transform cursor-pointer border border-white/5 hover:bg-white/20 backdrop-blur-md"
             >
-              <span className="text-[11px] font-bold text-white/60">우리 숲 누적 열매 ⭐</span>
-              <span className="text-[15px] font-extrabold text-white">{teamFruitCount}개</span>
+              <span className="text-[11px] font-bold text-white/60">우리 숲 누적 열매 🌳</span>
+              <span className="text-[22px] font-extrabold text-white leading-tight">{totalFruitCount}<span className="text-[13px] font-bold ml-1 opacity-70">개</span></span>
             </div>
-            <div className="flex flex-col gap-1 bg-white/10 backdrop-blur-md p-3 rounded-2xl active:scale-[0.98] transition-transform cursor-pointer border border-white/5">
-              <span className="text-[11px] font-bold text-white/60">{monthLabel} 출석 스탬프 🗺️</span>
-              <span className="text-[15px] font-extrabold text-[#d1fae5]">{stampCount} / {STAMP_TARGET} 획득</span>
-            </div>
+
+            {/* Daily watering button */}
+            <button
+              onClick={handleWaterTree}
+              disabled={hasTodayFruit}
+              className={`relative flex flex-col items-center justify-center gap-1 px-4 py-3 rounded-2xl border transition-all active:scale-95 backdrop-blur-md ${
+                hasTodayFruit
+                  ? 'bg-white/5 border-white/10 cursor-default opacity-70'
+                  : 'bg-emerald-400/20 border-emerald-300/30 hover:bg-emerald-400/30 cursor-pointer shadow-lg shadow-emerald-900/20'
+              }`}
+            >
+              {wateringAnim && (
+                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-2xl animate-bounce pointer-events-none">🍎</span>
+              )}
+              <span className="text-2xl">{hasTodayFruit ? '✅' : '💧'}</span>
+              <span className="text-[10px] font-extrabold text-white/80 whitespace-nowrap">
+                {hasTodayFruit ? '수확 완료' : '오늘 물주기'}
+              </span>
+            </button>
           </div>
         </div>
         <div className="absolute -bottom-10 -right-10 w-40 h-40 opacity-[0.06] pointer-events-none">
@@ -255,20 +671,95 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
 
       {/* Kids Care Duty Notification Removed from inline body - Now handled by Duty Alert Modal */}
 
-      {/* Quick Menu Grid */}
-      <section className="space-y-4">
+      {/* Quick Menu */}
+      <section className="space-y-3">
         <div className="flex justify-between items-center px-2">
           <h2 className="font-headline text-xl font-bold tracking-tight text-on-surface">간편 메뉴</h2>
-          <span className="text-xs font-bold text-primary-dim uppercase tracking-widest cursor-pointer">전체보기</span>
+          <button
+            onClick={() => setShowAllMenus(true)}
+            className="text-xs font-bold text-primary-dim uppercase tracking-widest cursor-pointer hover:opacity-70 transition-opacity"
+          >
+            전체보기
+          </button>
         </div>
-        <div className="grid grid-cols-5 gap-3">
-          <MenuButton icon={<QrCode className="w-6 h-6 text-primary-dim group-hover:scale-110 transition-transform" />} label="출석체크" hoverBg="hover:bg-primary-container" onClick={() => setIsTicketModalOpen(true)} />
-          <MenuButton icon={<Users className="w-6 h-6 text-secondary group-hover:scale-110 transition-transform" />} label="숲 모임" hoverBg="hover:bg-secondary-container" onClick={onNavigateToMyForestBoard} />
-          <MenuButton icon={<ClipboardList className="w-6 h-6 text-tertiary group-hover:scale-110 transition-transform" />} label="설문조사" hoverBg="hover:bg-tertiary-container" onClick={() => onNavigate('survey')} />
-          <MenuButton icon={<Wallet className="w-6 h-6 text-emerald-800 group-hover:scale-110 transition-transform" />} label="회비납부" hoverBg="hover:bg-emerald-100" onClick={() => onNavigate('finance')} />
-          <MenuButton icon={<FileText className="w-6 h-6 text-blue-800 group-hover:scale-110 transition-transform" />} label="회의록" hoverBg="hover:bg-blue-100" onClick={() => onNavigate('minutes')} />
+
+        {/* Horizontal scroll row */}
+        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1 -mx-2 px-2">
+          {[
+            { id: 'qr', icon: <QrCode className="w-6 h-6 text-primary-dim" />, label: '출석체크', bg: 'hover:bg-primary-container', onClick: () => setIsTicketModalOpen(true) },
+            { id: 'my_forest', icon: <Users className="w-6 h-6 text-secondary" />, label: '숲 모임', bg: 'hover:bg-secondary-container', onClick: onNavigateToMyForestBoard },
+            { id: 'survey', icon: <ClipboardList className="w-6 h-6 text-tertiary" />, label: '설문조사', bg: 'hover:bg-tertiary-container', onClick: () => onNavigate('survey') },
+            { id: 'finance', icon: <Wallet className="w-6 h-6 text-emerald-800" />, label: '회비납부', bg: 'hover:bg-emerald-100', onClick: () => onNavigate('finance') },
+            { id: 'minutes', icon: <FileText className="w-6 h-6 text-blue-800" />, label: '회의록', bg: 'hover:bg-blue-100', onClick: () => onNavigate('minutes') },
+            { id: 'forest_items', icon: <Package className="w-6 h-6 text-amber-700" />, label: '물품관리', bg: 'hover:bg-amber-50', onClick: () => onNavigate('forest_items') },
+            { id: 'prayer', icon: <HandMetal className="w-6 h-6 text-violet-600" />, label: '기도제목', bg: 'hover:bg-violet-50', onClick: () => onNavigate('prayer') },
+          ].map((item) => (
+            <button
+              key={item.label}
+              onClick={() => handleMenuClick(item.id, item.onClick)}
+              className={`flex-shrink-0 flex flex-col items-center gap-2 p-3 w-[72px] bg-white rounded-2xl shadow-sm border border-gray-100 active:scale-95 transition-all group ${item.bg}`}
+            >
+              <div className="relative w-11 h-11 rounded-xl bg-surface-container flex items-center justify-center group-hover:scale-110 transition-transform">
+                {item.icon}
+                {hasNew(item.id) && (
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 border-2 border-white rounded-full z-10 animate-pulse shadow-sm"></span>
+                )}
+              </div>
+              <span className="text-[10px] font-bold text-on-surface-variant whitespace-nowrap">{item.label}</span>
+            </button>
+          ))}
         </div>
       </section>
+
+      {/* 전체보기 Modal */}
+      {showAllMenus && (
+        <div
+          className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowAllMenus(false)}
+        >
+          <div
+            className="bg-white w-full max-w-md rounded-t-[2.5rem] shadow-2xl animate-in slide-in-from-bottom duration-300 pb-8"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 bg-gray-200 rounded-full" />
+            </div>
+            <div className="px-6 pt-3 pb-5 flex items-center justify-between">
+              <h3 className="font-headline font-bold text-lg text-on-surface">전체 메뉴</h3>
+              <button onClick={() => setShowAllMenus(false)} className="p-2 rounded-full bg-gray-100 active:scale-95">
+                <X size={18} className="text-gray-600" />
+              </button>
+            </div>
+            <div className="grid grid-cols-4 gap-4 px-6">
+              {[
+                { id: 'qr', icon: <QrCode className="w-6 h-6 text-primary-dim" />, label: '출석체크', bg: 'bg-primary-container/30', onClick: () => { setIsTicketModalOpen(true); setShowAllMenus(false); } },
+                { id: 'my_forest', icon: <Users className="w-6 h-6 text-secondary" />, label: '숲 모임', bg: 'bg-secondary-container/30', onClick: () => { onNavigateToMyForestBoard(); setShowAllMenus(false); } },
+                { id: 'survey', icon: <ClipboardList className="w-6 h-6 text-tertiary" />, label: '설문조사', bg: 'bg-tertiary-container/30', onClick: () => { onNavigate('survey'); setShowAllMenus(false); } },
+                { id: 'finance', icon: <Wallet className="w-6 h-6 text-emerald-800" />, label: '회비납부', bg: 'bg-emerald-50', onClick: () => { onNavigate('finance'); setShowAllMenus(false); } },
+                { id: 'minutes', icon: <FileText className="w-6 h-6 text-blue-800" />, label: '회의록', bg: 'bg-blue-50', onClick: () => { onNavigate('minutes'); setShowAllMenus(false); } },
+                { id: 'forest_items', icon: <Package className="w-6 h-6 text-amber-700" />, label: '물품관리', bg: 'bg-amber-50', onClick: () => { onNavigate('forest_items'); setShowAllMenus(false); } },
+                { id: 'prayer', icon: <HandMetal className="w-6 h-6 text-violet-600" />, label: '기도제목', bg: 'bg-violet-50', onClick: () => { onNavigate('prayer'); setShowAllMenus(false); } },
+                { id: 'calendar', icon: <Calendar className="w-6 h-6 text-rose-600" />, label: '일정', bg: 'bg-rose-50', onClick: () => { onNavigate('calendar'); setShowAllMenus(false); } },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  onClick={() => handleMenuClick(item.id, item.onClick)}
+                  className="flex flex-col items-center gap-2 active:scale-95 transition-all group"
+                >
+                  <div className={`relative w-14 h-14 rounded-2xl ${item.bg} flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform`}>
+                    {item.icon}
+                    {hasNew(item.id) && (
+                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 border-2 border-white rounded-full z-10 animate-pulse shadow-sm"></span>
+                    )}
+                  </div>
+                  <span className="text-[11px] font-bold text-on-surface-variant text-center leading-tight">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Active Surveys Section */}
       {activeSurveys.length > 0 && (
@@ -301,37 +792,36 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
       )}
 
       {/* Upcoming Schedule Section */}
-    <section className="space-y-6">
+    <section className="space-y-3">
       <div className="flex justify-between items-center px-2">
         <h2 className="font-headline text-xl font-bold tracking-tight text-on-surface">다가오는 일정</h2>
-        <div className="flex gap-1">
-          <div className="w-2 h-2 rounded-full bg-primary"></div>
-          <div className="w-2 h-2 rounded-full bg-surface-container-highest"></div>
-        </div>
+        <span
+          onClick={() => onNavigate('calendar')}
+          className="text-xs font-bold text-primary cursor-pointer hover:opacity-70 transition-opacity"
+        >더보기</span>
       </div>
-      <div className="space-y-4">
+
+      {/* 가로 스크롤 카드 */}
+      <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-2 -mx-2 px-2 snap-x snap-mandatory">
         {(() => {
-          const todayStr = today; // "YYYY-MM-DD"
+          const todayStr = today;
           const currentYearStr = new Date().getFullYear().toString();
-          
-          // 1. Process Birthdays
+          const DAY_KR = ['일', '월', '화', '수', '목', '금', '토'];
+
+          // 1. 생일 목록 처리
           const upcomingBirthdays = users
             ? users.filter((u: any) => u.birthdate && u.birthdate.length >= 5)
                 .map((u: any) => {
-                  const mm_dd = u.birthdate.substring(5); // e.g. "05-12"
+                  const mm_dd = u.birthdate.substring(5);
                   let bdayFullDate = `${currentYearStr}-${mm_dd}`;
                   if (bdayFullDate < todayStr) {
-                    // If it already passed this year, we COULD show next year's, 
-                    // but usually upcoming schedule only shows near future. We'll skip or use next year
-                    bdayFullDate = `${parseInt(currentYearStr) + 1}-${mm_dd}`; 
+                    bdayFullDate = `${parseInt(currentYearStr) + 1}-${mm_dd}`;
                   }
-                  
                   const f = forests?.find((f: any) => f.id === u.forest_id || f.id === u.forest);
                   const forestName = f ? f.name : '소속없음';
-
                   return {
                     id: `bday-${u.uid}`,
-                    title: `🎉 ${u.name}님의 생일`,
+                    title: `${u.name}님의 생일`,
                     fullDate: bdayFullDate,
                     time: '하루 종일 🎂',
                     location: `${forestName} 숲`,
@@ -339,36 +829,92 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
                     isBirthday: true
                   };
                 })
-                .filter((bday: any) => bday.fullDate >= todayStr) // just in case
+                .filter((bday: any) => bday.fullDate >= todayStr)
             : [];
 
-          // 2. Combine and sort
+          // 2. 합치고 정렬 (최대 8개)
           const validSchedules = schedules
-            .filter((s: any) => s.active !== false && (s.fullDate && s.fullDate >= todayStr))
+            .filter((s: any) => s.active !== false && s.fullDate && s.fullDate >= todayStr)
             .concat(upcomingBirthdays)
             .sort((a: any, b: any) => (a.fullDate || '').localeCompare(b.fullDate || ''))
-            .slice(0, 5);
+            .slice(0, 8);
 
           if (validSchedules.length === 0) {
-            return <div className="text-sm text-center py-6 text-on-surface-variant">예정된 일정이 없습니다.</div>;
+            return (
+              <div className="w-full text-sm text-center py-6 text-on-surface-variant">
+                예정된 일정이 없습니다.
+              </div>
+            );
           }
 
           return validSchedules.map((schedule: any) => {
             const parts = schedule.fullDate ? schedule.fullDate.split('-') : [];
-            const month = parts.length >= 2 ? parseInt(parts[1]) + '월' : '';
-            const day = parts.length >= 3 ? parseInt(parts[2]) + '' : '';
+            const monthNum = parts.length >= 2 ? parseInt(parts[1]) : 0;
+            const dayNum  = parts.length >= 3 ? parseInt(parts[2]) : 0;
+            const dateObj = schedule.fullDate ? new Date(schedule.fullDate + 'T00:00:00') : null;
+            const dow     = dateObj ? DAY_KR[dateObj.getDay()] : '';
+            const isSun   = dateObj?.getDay() === 0;
+            const isSat   = dateObj?.getDay() === 6;
+            const dDay    = schedule.d_day && schedule.d_day !== 'D-?' && !schedule.d_day.includes('?')
+              ? schedule.d_day
+              : calculateDDay(schedule.fullDate);
+            const isToday = dDay === 'D-Day';
+
+            // 카드 배경/텍스트 색상 결정
+            const cardBg  = isToday        ? 'bg-[#0F6045] border-[#0F6045]'
+                          : schedule.isBirthday ? 'bg-pink-50 border-pink-100'
+                          : 'bg-white border-gray-100';
+            const textMain = isToday ? 'text-white' : 'text-gray-900';
+            const textSub  = isToday ? 'text-white/60' : 'text-gray-400';
+            const dayColor = isToday ? 'text-white'
+                           : isSun   ? 'text-rose-500'
+                           : isSat   ? 'text-blue-500'
+                           : 'text-gray-900';
+            const dowColor = isToday ? 'text-white/60'
+                           : isSun   ? 'text-rose-400'
+                           : isSat   ? 'text-blue-400'
+                           : 'text-gray-400';
+
             return (
-              <ScheduleItem
+              <div
                 key={schedule.id}
-                month={month}
-                day={day}
-                dDay={schedule.d_day && schedule.d_day !== 'D-?' && !schedule.d_day.includes('?') ? schedule.d_day : calculateDDay(schedule.fullDate)}
-                time={schedule.time}
-                title={schedule.title}
-                location={schedule.location}
-                dDayClass={schedule.isBirthday ? "bg-pink-100 text-pink-600 border border-pink-200" : (schedule.active ? "bg-error-container/20 text-on-error-container" : "bg-surface-container-high text-on-surface-variant")}
-                active={schedule.active}
-              />
+                onClick={() => onNavigate('calendar')}
+                className={`flex-shrink-0 snap-start w-[112px] rounded-2xl p-3 flex flex-col gap-1.5 cursor-pointer active:scale-[0.96] transition-all shadow-sm border ${cardBg}`}
+              >
+                {/* 상단: 월 + D-Day */}
+                <div className="flex items-center justify-between">
+                  <span className={`text-[10px] font-bold ${textSub}`}>{monthNum}월</span>
+                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+                    isToday ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-600'
+                  }`}>{dDay}</span>
+                </div>
+
+                {/* 날짜 숫자 + 요일 */}
+                <div className="flex items-end gap-1 leading-none">
+                  <span className={`text-[28px] font-black leading-none ${dayColor}`}>{dayNum}</span>
+                  <span className={`text-[11px] font-bold mb-0.5 ${dowColor}`}>{dow}</span>
+                </div>
+
+                {/* 뱃지 (생일 / 공휴일 등) */}
+                {(schedule.isBirthday || schedule.category) && (
+                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-full w-fit ${
+                    schedule.isBirthday
+                      ? 'bg-pink-200 text-pink-700'
+                      : isToday
+                      ? 'bg-white/20 text-white'
+                      : 'bg-emerald-100 text-emerald-700'
+                  }`}>
+                    {schedule.isBirthday ? '🎂 생일' : schedule.category}
+                  </span>
+                )}
+
+                {/* 제목 */}
+                <p className={`text-[11px] font-semibold leading-snug line-clamp-2 mt-auto ${
+                  isToday ? 'text-white' : 'text-gray-700'
+                }`}>
+                  {schedule.title.replace('🎉 ', '')}
+                </p>
+              </div>
             );
           });
         })()}
@@ -491,7 +1037,10 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
         isOpen={isFruitModalOpen}
         onClose={() => setIsFruitModalOpen(false)}
         teamFruitCount={teamFruitCount}
-        forestName={user?.forest || '우리'}
+        totalFruitCount={totalFruitCount}
+        forestName={forestName === '소속 없음' ? '우리' : forestName}
+        leaderboard={leaderboard}
+        isAdmin={user?.role === 'admin'}
       />
 
       {/* Popups */}
@@ -532,7 +1081,7 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
                         await setDoc(notifRef, {
                           title: '🧒 키즈돌봄 당번 안내',
                           body: `안녕하세요! 이번 주 주일(${upcomingCareForMyForest.date})은 우리 숲이 키즈돌봄 봉사 당번입니다. 예배 시간 중 소중한 아이들을 함께 섬겨주세요. 감사합니다 💚`,
-                          category: 'schedule',
+                          category: 'kids_care',
                           createdAt: new Date().toISOString(),
                           target_uid: user.uid,
                           linkId: upcomingCareForMyForest.id
