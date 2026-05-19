@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">Forest</string>
     <string name="title_activity_main">Forest</string>
-    <string name="package_name">com.forest3040.app</string>
-    <string name="custom_url_scheme">com.forest3040.app</string>
+    <string name="package_name">com.story.forest</string>
+    <string name="custom_url_scheme">com.story.forest</string>
+    <string name="default_web_client_id">550286196189-unv018qglkmai5c8uq8t3b43a2p1lsal.apps.googleusercontent.com</string>
 </resources>

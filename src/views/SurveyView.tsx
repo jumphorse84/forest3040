@@ -212,7 +212,7 @@ const SurveyView = ({ user, surveys, onBack, onShowToast, onVote }: any) => {
             </button>
             <h1 className="text-lg font-bold tracking-tight text-on-surface ml-2">설문조사</h1>
           </div>
-          {(user?.role === 'admin' || user?.email === 'jumphorse@nate.com' || user?.email === 'seokgwan.ms01@gmail.com' || user?.uid === 'sfViap2UZ2alO1kzinMETlcLCxv1') && (
+          {(user?.role === 'admin') && (
             <button 
               onClick={() => setIsAdding(true)}
               className="p-2 text-primary hover:bg-primary/10 rounded-full transition-colors mr-1"

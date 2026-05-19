@@ -1,4 +1,4 @@
-package com.forest3040.app;
+package com.story.forest;
 
 import com.getcapacitor.BridgeActivity;
 

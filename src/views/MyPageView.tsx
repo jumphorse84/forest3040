@@ -123,8 +123,8 @@ const MyPageView = ({ user, forests, attendance, onBack, onShowToast, onLogout, 
   ];
 
   // ── Terms / Privacy / Withdraw sub-pages ──────────────────────────
-  const TERMS = `서비스 이용약관\n\n제1조 (목적)\n본 약관은 Forest 앱이 제공하는 서비스의 이용 조건 및 절차, 이용자와 앱의 권리·의무·책임 사항을 규정합니다.\n\n제2조 (서비스의 제공)\n앱은 교회 공동체 내 소통, 일정 관리, 소그룹 활동 지원 등의 서비스를 제공합니다.\n\n제3조 (개인정보 보호)\n앱은 관계 법령이 정하는 바에 따라 이용자의 개인정보를 보호합니다.`;
-  const PRIVACY = `개인정보 처리방침\n\n1. 수집 항목\n이름, 이메일, 프로필 사진(Google 연동), 소속, 연락처(선택), 출석·활동 내역\n\n2. 수집·이용 목적\n회원 식별 및 관리, 소그룹 활동 지원, 출석 통계\n\n3. 보유 기간\n회원 탈퇴 또는 관리자 삭제 시 즉시 파기\n\n4. 보안\nFirebase(Google Cloud) 인프라 및 Firestore 보안 규칙 적용\n\n5. 문의\njumphorse@nate.com`;
+  const TERMS = `서비스 이용약관\n\n제1조 (목적)\n본 약관은 Forest 3040이 제공하는 서비스의 이용 조건 및 절차, 이용자와 앱의 권리·의무·책임 사항을 규정합니다.\n\n제2조 (서비스의 제공)\n앱은 교회 공동체 내 소통, 일정 관리, 출석 통계, 소그룹 활동 지원 등의 서비스를 제공합니다.\n\n제3조 (이용자의 의무)\n이용자는 타인의 명예를 훼손하거나 불법적인 용도로 앱을 사용해서는 안 되며, 공동체 질서를 지켜야 합니다.\n\n전체 서비스 이용약관은 웹사이트(forest3040-6f109.web.app/terms.html)에서 확인하실 수 있습니다.`;
+  const PRIVACY = `개인정보 처리방침\n\n1. 수집 항목\n이름, 이메일, 프로필 사진(Google/Kakao 연동), 소속, 연락처(선택), 출석·활동 내역\n\n2. 수집·이용 목적\n회원 식별 및 관리, 공동체 활동 지원, 출석 통계\n\n3. 보유 기간\n회원 탈퇴 또는 관리자 삭제 시 즉시 파기\n\n4. 보안\nFirebase(Google Cloud) 인프라 및 전송구간 암호화 적용\n\n5. 문의\njumphorse@naver.com\n\n전체 개인정보 처리방침은 웹사이트(forest3040-6f109.web.app/privacy.html)에서 확인하실 수 있습니다.`;
 
   if (subSettings) {
     return (
@@ -426,7 +426,7 @@ const MyPageView = ({ user, forests, attendance, onBack, onShowToast, onLogout, 
           <section className="space-y-5">
 
             {/* 관리자 */}
-            {(user.role === 'admin' || user.email === 'jumphorse@nate.com' || user.email === 'seokgwan.ms01@gmail.com') && (
+            {(user.role === 'admin') && (
               <div>
                 <p className="text-[11px] font-extrabold text-outline uppercase tracking-widest mb-2 px-1">관리자</p>
                 <button onClick={onNavigateToAdmin} className="w-full flex items-center justify-between p-4 bg-primary/5 border border-primary/20 rounded-2xl active:scale-95 transition-all">
@@ -472,8 +472,8 @@ const MyPageView = ({ user, forests, attendance, onBack, onShowToast, onLogout, 
               <p className="text-[11px] font-extrabold text-outline uppercase tracking-widest mb-2 px-1">앱 정보</p>
               <div className="bg-white rounded-2xl overflow-hidden border border-surface-container-low divide-y divide-surface-container-low">
                 {[
-                  { icon: FileText, label: '서비스 이용약관', action: () => setSubSettings('terms') },
-                  { icon: Shield, label: '개인정보 처리방침', action: () => setSubSettings('privacy') },
+                  { icon: FileText, label: '서비스 이용약관', action: () => window.open('/terms.html', '_blank') },
+                  { icon: Shield, label: '개인정보 처리방침', action: () => window.open('/privacy.html', '_blank') },
                 ].map(row => (
                   <button key={row.label} onClick={row.action} className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-surface-container-lowest transition-colors active:scale-[0.98]">
                     <div className="flex items-center gap-3">

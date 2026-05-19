@@ -4,6 +4,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { motion } from 'framer-motion';
 import {
   Menu, Bell, User, Flame, QrCode, Users, ClipboardList, Wallet, FileText,
@@ -38,7 +40,8 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
-  OAuthProvider
+  OAuthProvider,
+  signInWithCredential
 } from 'firebase/auth';
 import { jwtDecode } from 'jwt-decode';
 import AdminUserManagementView from './views/AdminUserManagementView';
@@ -175,6 +178,7 @@ export default function App() {
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [selectedWorshipId, setSelectedWorshipId] = useState<string | null>(null);
   const [selectedKidsCareId, setSelectedKidsCareId] = useState<string | null>(null);
+  const [selectedCalendarSchedule, setSelectedCalendarSchedule] = useState<any>(null);
   const [selectedPastoralUser, setSelectedPastoralUser] = useState<any>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showRedirectLoginModal, setShowRedirectLoginModal] = useState(false);
@@ -202,7 +206,38 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [firestoreReady, setFirestoreReady] = useState(false);
+  // Night mode for nav: synced with time (updated every minute)
+  const [isHomeDay, setIsHomeDay] = useState<boolean>(() => { const h = new Date().getHours(); return h >= 6 && h < 19; });
+  useEffect(() => {
+    const tick = () => { const h = new Date().getHours(); setIsHomeDay(h >= 6 && h < 19); };
+    const id = setInterval(tick, 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const worshipId = urlParams.get('worship_id');
+    if (worshipId) {
+      setActiveTab('worship');
+      setSelectedWorshipId(worshipId);
+      sessionStorage.setItem('pending_worship_id', worshipId);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
+  const applyRouting = () => {
+    const pendingWorshipId = sessionStorage.getItem('pending_worship_id');
+    if (pendingWorshipId) {
+      setActiveTab('worship');
+      setSelectedWorshipId(pendingWorshipId);
+      sessionStorage.removeItem('pending_worship_id');
+    } else {
+      setActiveTab(prev => prev === 'worship' ? 'worship' : 'home');
+    }
+    setSubPage(null);
+  };
 
   const triggerSplash = () => {
     setShowSplash(true);
@@ -235,6 +270,7 @@ export default function App() {
   useEffect(() => {
     getRedirectResult(auth).then(async (result) => {
       if (result) {
+        setIsLoggingIn(true);
         const credential = OAuthProvider.credentialFromResult(result);
         if (credential && credential.idToken) {
           try {
@@ -254,13 +290,14 @@ export default function App() {
           }
         }
         await saveUserToFirestore(result.user);
-        setActiveTab('home');
-        setSubPage(null);
+        applyRouting();
         triggerSplash();
         showToast("로그인되었습니다.");
+        setIsLoggingIn(false);
       }
     }).catch((error) => {
       console.error("Redirect login failed:", error);
+      setIsLoggingIn(false);
     });
   }, []);
 
@@ -271,11 +308,20 @@ export default function App() {
       return;
     }
 
-    const unsubUser = onSnapshot(doc(firestoreDb, 'users', user.uid), (snapshot) => {
+    const unsubUser = onSnapshot(doc(firestoreDb, 'users', user.uid), async (snapshot) => {
       if (snapshot.exists()) {
         setUserData(snapshot.data());
       } else {
-        saveUserToFirestore(user);
+        // Document missing. Could be a new user being created, or deleted by admin.
+        // Wait 3 seconds, then check again before signing out to prevent bouncing new users.
+        setTimeout(async () => {
+          try {
+            const checkDoc = await getDoc(doc(firestoreDb, 'users', user.uid));
+            if (!checkDoc.exists()) {
+              await signOut(auth);
+            }
+          } catch(e) {}
+        }, 3000);
       }
     }, (err) => handleFirestoreError(err, OperationType.GET, `users/${user.uid}`));
 
@@ -347,7 +393,7 @@ export default function App() {
     }, (err) => handleFirestoreError(err, OperationType.GET, 'kids_cares'));
 
     // Fees listener - restricted by permission
-    const isAdminUser = userData?.role === 'admin' || user?.uid === 'sfViap2UZ2alO1kzinMETlcLCxv1' || user?.email === 'seokgwan.ms01@gmail.com' || user?.email === 'jumphorse@nate.com';
+    const isAdminUser = userData?.role === 'admin';
     const canSeeAllFees = isAdminUser || userData?.permissions?.finance;
     const feesQuery = canSeeAllFees
       ? collection(firestoreDb, 'fees')
@@ -434,10 +480,15 @@ export default function App() {
             forest: false,
             attendance: false
           },
+          status: (firebaseUser.email === 'jumphorse@nate.com' || firebaseUser.email === 'seokgwan.ms01@gmail.com') ? 'approved' : 'pending',
           createdAt: Timestamp.now()
         };
         await setDoc(userRef, newUser);
       } else {
+        // If user was previously rejected, do not let them re-register
+        if (userSnap.data().status === 'rejected') {
+          return; // Keep the rejected status, do not update anything
+        }
         const updateData: any = {
           name: firebaseUser.displayName || userSnap.data().name,
           profile_image: firebaseUser.photoURL || userSnap.data().profile_image,
@@ -449,22 +500,67 @@ export default function App() {
         }
         await updateDoc(userRef, updateData);
       }
-    } catch (err) {
+    } catch (err: any) {
+      console.error("Save User Error:", err);
       handleFirestoreError(err, OperationType.WRITE, `users/${firebaseUser.uid}`);
     }
   };
 
   const handleLogin = async () => {
-    const provider = new GoogleAuthProvider();
+    console.log('[Forest] handleLogin called, isNative:', Capacitor.isNativePlatform());
+    showToast('Google 로그인 시도 중...');
     try {
-      const result = await signInWithPopup(auth, provider);
-      await saveUserToFirestore(result.user);
-      setActiveTab('home');
-      setSubPage(null);
-      triggerSplash();
-    } catch (error) {
-      console.error("Login failed:", error);
-      showToast("로그인에 실패했습니다.");
+      setIsLoggingIn(true);
+      if (Capacitor.isNativePlatform()) {
+        console.log('[Forest] Calling FirebaseAuthentication.signInWithGoogle({ useCredentialManager: false })');
+        let result: any;
+        try {
+          // 이전 세션 충돌 방지를 위해 강제로 로그아웃 후 다시 시작
+          try { await FirebaseAuthentication.signOut(); } catch(e) {}
+          
+          const timeout = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('TIMEOUT_30S')), 30000)
+          );
+          result = await Promise.race([FirebaseAuthentication.signInWithGoogle({ useCredentialManager: false }), timeout]);
+          console.log('[Forest] signInWithGoogle raw result:', JSON.stringify(result));
+        } catch (pluginError: any) {
+          console.error('[Forest] Plugin error:', pluginError);
+          showToast('플러그인 오류: ' + (pluginError?.message || String(pluginError)));
+          return;
+        }
+
+        if (!result || !result.credential || !result.credential.idToken) {
+          showToast('인증 정보(Token)를 받아오지 못했습니다.');
+          return;
+        }
+
+        // 받아온 idToken을 사용해 Firebase JS SDK에 직접 강제 인증
+        try {
+          const credential = GoogleAuthProvider.credential(result.credential.idToken);
+          const firebaseAuthResult = await signInWithCredential(auth, credential);
+          
+          if (firebaseAuthResult.user) {
+            await saveUserToFirestore(firebaseAuthResult.user);
+            applyRouting();
+            triggerSplash();
+            showToast('로그인되었습니다.');
+          }
+        } catch (authError: any) {
+          console.error('[Forest] Firebase sync error:', authError);
+          showToast('Firebase 동기화 실패: ' + authError.message);
+        }
+      } else {
+        const provider = new GoogleAuthProvider();
+        const result = await signInWithPopup(auth, provider);
+        await saveUserToFirestore(result.user);
+        applyRouting();
+        triggerSplash();
+      }
+    } catch (error: any) {
+      console.error('[Forest] handleLogin error:', error);
+      showToast('오류: ' + (error.code || error.message || String(error)));
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -483,6 +579,11 @@ export default function App() {
     const tryLogin = async (providerId: string) => {
       const provider = new OAuthProvider(providerId);
       try {
+        setIsLoggingIn(true);
+        if (Capacitor.isNativePlatform()) {
+          await signInWithRedirect(auth, provider);
+          return true;
+        }
         const result = await signInWithPopup(auth, provider);
         const credential = OAuthProvider.credentialFromResult(result);
 
@@ -504,8 +605,7 @@ export default function App() {
           }
         }
         await saveUserToFirestore(result.user);
-        setActiveTab('home');
-        setSubPage(null);
+        applyRouting();
         triggerSplash();
         return true;
       } catch (error: any) {
@@ -538,16 +638,20 @@ export default function App() {
         console.error("Error Details:", error.customData);
         showToast(`카카오 로그인 실패: ${error.code}`);
       }
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
   const handleKakaoRedirectLogin = async () => {
     const provider = new OAuthProvider('oidc.kakao');
     try {
+      setIsLoggingIn(true);
       await signInWithRedirect(auth, provider);
     } catch (error: any) {
       console.error("Kakao Redirect Login failed:", error);
       showToast("카카오 로그인에 실패했습니다.");
+      setIsLoggingIn(false);
     }
   };
 
@@ -589,13 +693,17 @@ export default function App() {
     name: user.displayName || (userData?.name) || (mockDb.users[0] as any).name,
     email: user.email || (userData?.email) || (mockDb.users[0] as any).email,
     photoURL: user.photoURL || (userData?.profile_image) || (mockDb.users[0] as any).profile_image,
-    uid: user.uid, role: (userData?.role === 'admin' || user?.uid === 'sfViap2UZ2alO1kzinMETlcLCxv1' || user?.email === 'seokgwan.ms01@gmail.com' || user?.email === 'jumphorse@nate.com') ? 'admin' : (userData?.role || 'member')
+    uid: user.uid, role: userData?.role || 'member'
   } : null;
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
+
+  // Filter out pending/rejected users and incomplete registrations for public views
+  // Legacy members (before approval system) may not have a status field - they should be visible
+  const approvedUsers = users.filter((u: any) => (u.status === 'approved' || !u.status) && !!u.forest_id);
 
   if (loading) {
     return <div className="fixed inset-0 bg-[#FBF4E4]" />;
@@ -607,140 +715,183 @@ export default function App() {
   }
 
   if (!user) {
+    const containerVariants = {
+      hidden: { opacity: 0 },
+      visible: {
+        opacity: 1,
+        transition: {
+          staggerChildren: 0.15,
+          delayChildren: 0.2,
+        },
+      },
+    };
+
+    const itemVariants = {
+      hidden: { opacity: 0, y: 20 },
+      visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } },
+    };
+
     return (
-      <div className="flex items-center justify-center min-h-screen p-4 md:p-10 bg-[#e8e4dc]">
-        {/* 모바일 프레임 */}
+      <div className="flex items-center justify-center min-h-screen p-4 sm:p-10 bg-[#e8e4dc]">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className="relative w-full max-w-[390px] min-h-[844px] bg-[#f9f6f1] rounded-[44px] overflow-hidden shadow-[0_60px_120px_rgba(40,60,30,0.28)] flex flex-col"
+          initial="hidden"
+          animate="visible"
+          variants={containerVariants}
+          className="relative w-full max-w-[390px] min-h-[844px] bg-[#f9f6f1] rounded-[44px] overflow-hidden shadow-[0_60px_120px_rgba(40,60,30,0.28),0_20px_40px_rgba(40,60,30,0.16)] flex flex-col"
+          id="phone-frame"
         >
-          {/* 상태바 */}
-          <div className="absolute top-0 left-0 right-0 h-12 flex items-center justify-between px-7 pt-3.5 z-10 opacity-70">
-            <span className="font-serif text-sm font-semibold text-[#2c4220]">9:41</span>
-            <div className="flex items-center gap-1.5 text-[#2c4220]">
-              <Wifi size={14} />
-              <Battery size={18} />
-            </div>
-          </div>
-
-          {/* 상단 숲 이미지 섹션 */}
-          <section className="relative w-full h-[400px] shrink-0 overflow-hidden">
+          {/* Hero Section */}
+          <div className="relative w-full h-[400px] shrink-0" id="hero-section">
             <img
-              alt="Forest watercolor"
-              src="https://lh3.googleusercontent.com/aida/ADBb0uhYdSEJT8ObRzkZoRkzX_kuGVgbaVT7Q1v9jcq5678g0rq19eDPj3lGt9M3Ikplup6_hyfs1CuIx8xXJWp6kEEusFhy8rnppIb_kTXq2dO6jhWvPbcaVV6p1gJ4UAdo6bn4tsntNnB93FlHJJY57jWrPTn6p7sTFDzLNuEyjBUO-Pw_uE9RPotXSJsV6MTYEmAEZOQ_hBI3JtdvQsOjUJf2Y9FKHz9D0UEYpjUSgTBi0IY7je14tts_ECI"
+              src="/forest_bg.png"
+              alt="Forest Watercolor"
               className="w-full h-full object-cover object-[center_30%]"
+              id="hero-image"
             />
-            
-            {/* 1. 새벽 안개 (어두운 톤) 페이드아웃 효과 */}
-            <motion.div 
-              initial={{ opacity: 0.6 }}
-              animate={{ opacity: 0 }}
-              transition={{ duration: 4.5, ease: "easeInOut" }}
-              className="absolute inset-0 bg-[#122230] pointer-events-none mix-blend-multiply"
+            <div 
+              className="absolute bottom-0 inset-x-0 h-48 bg-gradient-to-b from-transparent via-[#f9f6f1]/30 to-[#f9f6f1]" 
+              id="hero-gradient"
             />
-            
-            {/* 2. 떠오르는 따뜻한 햇살 (상단 글로우 페이드인) */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1.1 }}
-              transition={{ duration: 4.5, delay: 0.5, ease: "easeOut" }}
-              className="absolute top-[-20%] left-[-20%] w-[140%] h-[140%] pointer-events-none mix-blend-screen"
-              style={{
-                background: 'radial-gradient(circle at 50% 20%, rgba(255, 240, 190, 0.55) 0%, rgba(255, 230, 160, 0.15) 40%, transparent 60%)'
-              }}
-            />
+          </div>
 
-            {/* 3. 기존 햇살 반짝임 효과 (아침이 밝은 후 나타남) */}
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 3, delay: 3 }}
-              className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] pointer-events-none animate-sunlight z-[1]" 
-            />
+          {/* Floating Leaves Decor */}
+          <motion.div 
+            animate={{ rotate: [-25, -20, -25], scale: [1, 1.05, 1] }}
+            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute top-[415px] left-6 text-2xl opacity-15 pointer-events-none"
+          >
+            🌿
+          </motion.div>
+          <motion.div 
+            animate={{ rotate: [18, 23, 18], scale: [1, 1.05, 1] }}
+            transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute top-[430px] right-7 text-xl opacity-15 pointer-events-none scale-x-[-1]"
+          >
+            🌿
+          </motion.div>
 
-            {/* 부드러운 그라데이션 오버레이 */}
-            <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-b from-transparent to-[#f9f6f1]" />
-          </section>
+          {/* Content Section */}
+          <div className="flex-1 flex flex-col px-8 relative z-10 -mt-8" id="content-section">
+            {/* Brand */}
+            <motion.div variants={itemVariants} className="text-center mb-6">
+              <span className="font-display text-[10px] uppercase tracking-[0.3em] text-[#7a9a6a] block mb-2">
+                Forest Story
+              </span>
+              <h1 className="font-display text-[42px] font-normal leading-none tracking-tight text-[#1e3318]">
+                FOREST<span className="text-[#5a8a4a]">3040</span>
+              </h1>
+              <p className="mt-3 font-serif text-sm font-light tracking-[0.3em] text-[#6a8a5a]">
+                숲 속 이 야 기
+              </p>
+            </motion.div>
 
-          {/* 장식용 잎사귀 */}
-          <div className="absolute top-[415px] left-[22px] text-2xl opacity-15 animate-leaf-sway">🌿</div>
-          <div className="absolute top-[430px] right-[26px] text-lg opacity-15 animate-leaf-sway-reverse">🌿</div>
+            {/* Ornament */}
+            <motion.div variants={itemVariants} className="flex items-center gap-3 px-2 mb-8">
+              <div className="flex-1 h-px bg-gradient-to-r from-transparent to-[#9ab88a]" />
+              <div className="w-1 h-1 rounded-full bg-[#8aaa7a]" />
+              <div className="flex-1 h-px bg-gradient-to-l from-transparent to-[#9ab88a]" />
+            </motion.div>
 
-          {/* 브랜드 타이틀 */}
-          <div className="text-center px-10 -mt-7 relative z-[2]">
-            <div className="text-[10px] uppercase font-light tracking-[5px] text-[#7a9a6a] mb-1.5 italic font-serif">
-              Forest Story
+            {/* Welcome Text */}
+            <motion.div variants={itemVariants} className="text-center mb-10 px-4">
+              <p className="text-[13px] font-light leading-loose text-[#7a9070] tracking-wide">
+                지친 당신이 찾아온다면<br />
+                숲은 두팔을 벌려
+              </p>
+            </motion.div>
+
+            {/* Login Buttons */}
+            <div className="space-y-3.5 mb-10">
+              <motion.button
+                onClick={handleLogin}
+                variants={itemVariants}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full h-[54px] bg-white rounded-2xl flex items-center justify-center gap-3 text-sm font-medium text-[#2c4220] shadow-[0_2px_16px_rgba(80,120,60,0.12),0_0_0_0.5px_rgba(140,180,110,0.3)] cursor-pointer"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                </svg>
+                <span>Google로 로그인</span>
+              </motion.button>
+
+              <motion.button
+                onClick={handleKakaoLogin}
+                variants={itemVariants}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full h-[54px] bg-[#FEE500] rounded-2xl flex items-center justify-center gap-3 text-sm font-medium text-[#191919] shadow-[0_2px_16px_rgba(200,170,0,0.25)] cursor-pointer"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path d="M12 3C6.48 3 2 6.48 2 10.8c0 2.74 1.6 5.15 4 6.6l-.96 3.58 4.15-2.56c.9.17 1.83.26 2.81.26 5.52 0 10-3.48 10-7.88S17.52 3 12 3z" fill="#3B1E1A" />
+                </svg>
+                <span>카카오톡으로 로그인</span>
+              </motion.button>
             </div>
-            <h1 className="text-[42px] font-normal tracking-wider leading-none mb-1 text-[#1e3318] font-serif">
-              FOREST<span className="text-[#5a8a4a]">3040</span>
-            </h1>
-            <div className="text-sm font-light tracking-[3px] text-[#6a8a5a] mt-1.5 opacity-80">
-              숲 속 이 야 기
-            </div>
-          </div>
 
-          {/* 구분선 장식 */}
-          <div className="flex items-center gap-3 my-6 px-10">
-            <div className="flex-1 h-[0.5px] bg-gradient-to-r from-transparent via-[#9ab88a] to-transparent opacity-50" />
-            <div className="w-1 h-1 rounded-full bg-[#8aaa7a]" />
-            <div className="flex-1 h-[0.5px] bg-gradient-to-r from-[#9ab88a] to-transparent opacity-50" />
-          </div>
-
-          {/* 환영 문구 */}
-          <div className="text-center px-11 mb-8">
-            <p className="text-[13px] font-light text-[#7a9070] leading-[1.9] tracking-wide">
-              지친 당신이 찾아온다면<br />
-              숲은 두팔을 벌려 당신의 지친 어깨가<br />
-              이젠 쉬도록 편히 쉬도록 여기 주님의 숲에
-            </p>
-          </div>
-
-          {/* 로그인 버튼 섹션 */}
-          <div className="px-8 flex flex-col gap-3.5 mt-auto mb-6">
-            <motion.button
-              onClick={handleLogin}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full py-4 px-6 rounded-2xl text-sm flex items-center justify-center gap-3 bg-white text-[#2a4a22] shadow-[0_2px_16px_rgba(80,120,60,0.12)] border border-[rgba(140,180,110,0.2)] cursor-pointer"
-            >
-              {/* Google Icon SVG */}
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-              </svg>
-              Google로 로그인
-            </motion.button>
-
-            <motion.button
-              onClick={handleKakaoLogin}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full py-4 px-6 rounded-2xl text-sm flex items-center justify-center gap-3 bg-[#FEE500] text-[#191919] shadow-[0_2px_16px_rgba(200,170,0,0.2)] cursor-pointer"
-            >
-              {/* Kakao Icon SVG */}
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
-                <path d="M12 3C6.48 3 2 6.48 2 10.8c0 2.74 1.6 5.15 4 6.6l-.96 3.58 4.15-2.56c.9.17 1.83.26 2.81.26 5.52 0 10-3.48 10-7.88S17.52 3 12 3z" fill="#3B1E1A" />
-              </svg>
-              카카오톡으로 로그인
-            </motion.button>
-          </div>
-
-          {/* 하단 약관 */}
-          <div className="text-center px-8 pb-11 pt-4 text-[11px] text-[#a8b8a0] font-light leading-relaxed">
-            로그인하면 <a href="#" className="text-[#7a9a6a] underline underline-offset-4">서비스 이용약관</a> 및 <br />
-            <a href="#" className="text-[#7a9a6a] underline underline-offset-4">개인정보 처리방침</a>에 동의하는 것으로 간주합니다
+            <motion.div variants={itemVariants} className="text-center pb-12 mt-auto">
+              <p className="text-[11px] font-light text-[#a8b8a0] leading-relaxed">
+                로그인하면 <a href="/terms.html" className="text-[#7a9a6a] underline underline-offset-2">서비스 이용약관</a> 및<br />
+                <a href="/privacy.html" className="text-[#7a9a6a] underline underline-offset-2">개인정보 처리방침</a>에 동의하는 것으로 간주합니다
+              </p>
+            </motion.div>
           </div>
         </motion.div>
       </div>
     );
   }
 
-  if (showSplash) {
+  if (isLoggingIn || showSplash || (user && !userData)) {
     return <SplashScreen />;
+  }
+
+  if (userData && userData.status === 'pending') {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#f7f6f3] p-6 text-center">
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 max-w-sm w-full">
+          <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Clock size={32} />
+          </div>
+          <h2 className="text-xl font-bold text-gray-800 mb-2 font-headline">가입 승인 대기 중</h2>
+          <p className="text-sm text-gray-500 mb-8 leading-relaxed">
+            관리자가 가입을 확인하고 승인하면<br />
+            앱의 모든 기능을 이용하실 수 있습니다.
+          </p>
+          <button 
+            onClick={handleLogout} 
+            className="w-full px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-colors"
+          >
+            로그아웃
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (userData && userData.status === 'rejected') {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#f7f6f3] p-6 text-center">
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 max-w-sm w-full">
+          <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <XCircle size={32} />
+          </div>
+          <h2 className="text-xl font-bold text-gray-800 mb-2 font-headline">가입 거절됨</h2>
+          <p className="text-sm text-gray-500 mb-8 leading-relaxed">
+            관리자에 의해 가입이 거절되었습니다.<br />
+            자세한 사항은 관리자에게 문의해주세요.
+          </p>
+          <button 
+            onClick={handleLogout} 
+            className="w-full px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-colors"
+          >
+            로그아웃
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (userData && !userData.forest_id) {
@@ -762,14 +913,19 @@ export default function App() {
 
   const renderBottomNav = () => {
     if (subPage) return null;
+    const nightNav = activeTab === 'home' && !isHomeDay;
     return (
-      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto w-full flex justify-between items-center px-2 pb-6 pt-3 bg-[#f7f6f3]/80 backdrop-blur-2xl z-50 shadow-[0px_-10px_40px_rgba(0,0,0,0.04)] rounded-t-[3rem]">
-        <BottomNavItem icon={<Home size={22} className={activeTab === 'home' ? 'fill-current' : ''} />} label="홈" id="home" activeTab={activeTab} onClick={setActiveTab} />
-        <BottomNavItem icon={<Users size={22} className={activeTab === 'members' ? 'fill-current' : ''} />} label="삼성/사성이" id="members" activeTab={activeTab} onClick={setActiveTab} />
-        <BottomNavItem icon={<LayoutGrid size={22} className={activeTab === 'program' ? 'fill-current' : ''} />} label="프로그램" id="program" activeTab={activeTab} onClick={setActiveTab} />
-        <BottomNavItem icon={<BookOpen size={22} className={activeTab === 'worship' ? 'fill-current' : ''} />} label="예배" id="worship" activeTab={activeTab} onClick={setActiveTab} />
-        <BottomNavItem icon={<Calendar size={22} className={activeTab === 'calendar' ? 'fill-current' : ''} />} label="일정" id="calendar" activeTab={activeTab} onClick={setActiveTab} />
-        <BottomNavItem icon={<Baby size={22} className={activeTab === 'kids' ? 'fill-current' : ''} />} label="키즈돌봄" id="kids" activeTab={activeTab} onClick={setActiveTab} />
+      <nav className={`fixed bottom-0 left-0 right-0 max-w-md mx-auto w-full flex justify-between items-center px-2 pb-6 pt-3 backdrop-blur-2xl z-50 rounded-t-[3rem] transition-colors duration-700 ${
+        nightNav
+          ? 'bg-[#0d1625]/90 shadow-[0px_-10px_40px_rgba(0,0,40,0.25)]'
+          : 'bg-[#f7f6f3]/80 shadow-[0px_-10px_40px_rgba(0,0,0,0.04)]'
+      }`}>
+        <BottomNavItem icon={<Home size={22} className={activeTab === 'home' ? 'fill-current' : ''} />} label="홈" id="home" activeTab={activeTab} onClick={setActiveTab} nightMode={nightNav} />
+        <BottomNavItem icon={<Users size={22} className={activeTab === 'members' ? 'fill-current' : ''} />} label="삼성/사성이" id="members" activeTab={activeTab} onClick={setActiveTab} nightMode={nightNav} />
+        <BottomNavItem icon={<LayoutGrid size={22} className={activeTab === 'program' ? 'fill-current' : ''} />} label="프로그램" id="program" activeTab={activeTab} onClick={setActiveTab} nightMode={nightNav} />
+        <BottomNavItem icon={<BookOpen size={22} className={activeTab === 'worship' ? 'fill-current' : ''} />} label="예배" id="worship" activeTab={activeTab} onClick={setActiveTab} nightMode={nightNav} />
+        <BottomNavItem icon={<Calendar size={22} className={activeTab === 'calendar' ? 'fill-current' : ''} />} label="일정" id="calendar" activeTab={activeTab} onClick={setActiveTab} nightMode={nightNav} />
+        <BottomNavItem icon={<Baby size={22} className={activeTab === 'kids' ? 'fill-current' : ''} />} label="키즈돌봄" id="kids" activeTab={activeTab} onClick={setActiveTab} nightMode={nightNav} />
       </nav>
     );
   };
@@ -778,12 +934,18 @@ export default function App() {
     (!userData.lastCheckedNotificationAt || notifications[0].createdAt > userData.lastCheckedNotificationAt));
 
   return (
-    <div className={`bg-surface font-body selection:bg-primary/20 min-h-screen ${!subPage ? 'pb-32' : 'h-screen overflow-hidden'}`}>
+    <div className={`font-body selection:bg-primary/20 min-h-screen ${
+      activeTab === 'home' && !isHomeDay ? 'bg-[#0b1220]' : 'bg-surface'
+    } ${!subPage ? 'pb-32' : 'h-screen overflow-hidden'}`}>
       {!subPage && (
-        <nav className="sticky top-0 w-full z-50 bg-[#FAF9F6]/80 backdrop-blur-xl flex justify-between items-center px-6 py-4 max-w-md mx-auto left-0 right-0">
+        <nav className={`relative w-full z-50 flex justify-between items-center px-6 py-4 max-w-md mx-auto transition-colors duration-500 ${
+          activeTab === 'home'
+            ? 'bg-transparent'
+            : 'bg-[#FAF9F6]/80 backdrop-blur-xl'
+        }`}>
           <div className="flex items-center gap-3 active:scale-95 duration-200 cursor-pointer">
-            <Menu className="text-primary-dim w-6 h-6" />
-            <span className="font-headline font-bold text-lg tracking-tight text-primary-dim">
+            <Menu className={`w-6 h-6 ${activeTab === 'home' ? (isHomeDay ? 'text-[#1e2e18] drop-shadow' : 'text-white/90 drop-shadow') : 'text-primary-dim'}`} />
+            <span className={`font-headline font-bold text-lg tracking-tight drop-shadow-sm ${activeTab === 'home' ? (isHomeDay ? 'text-[#1e2e18]' : 'text-white/90') : 'text-primary-dim'}`}>
               {activeTab === 'home' ? 'FOREST 3040' :
                 activeTab === 'members' ? '삼성/사성이' :
                   activeTab === 'program' ? '프로그램' :
@@ -795,7 +957,7 @@ export default function App() {
           <div className="flex items-center gap-4">
             {userData?.role === 'admin' && (
               <div className="flex items-center gap-2 active:scale-95 duration-200 cursor-pointer" onClick={() => setSubPage('admin')}>
-                <Settings className="text-stone-600 hover:opacity-80 transition-opacity w-6 h-6" />
+                <Settings className={`hover:opacity-80 transition-opacity w-6 h-6 ${activeTab === 'home' ? (isHomeDay ? 'text-[#1e2e18] drop-shadow' : 'text-white/90 drop-shadow') : 'text-stone-600'}`} />
               </div>
             )}
             <div 
@@ -807,13 +969,13 @@ export default function App() {
                 }
               }}
             >
-              <Bell className="text-stone-600 hover:opacity-80 transition-opacity w-6 h-6" />
+              <Bell className={`hover:opacity-80 transition-opacity w-6 h-6 ${activeTab === 'home' ? (isHomeDay ? 'text-[#1e2e18] drop-shadow' : 'text-white/90 drop-shadow') : 'text-stone-600'}`} />
               {hasUnreadNotifications && (
                 <span className="absolute top-0 -right-0.5 w-[10px] h-[10px] bg-red-500 border-2 border-surface rounded-full shadow-sm animate-pulse"></span>
               )}
             </div>
             <div className="flex items-center gap-2 active:scale-95 duration-200 cursor-pointer" onClick={() => setSubPage('mypage')}>
-              <User className="text-stone-600 hover:opacity-80 transition-opacity w-6 h-6" />
+              <User className={`hover:opacity-80 transition-opacity w-6 h-6 ${activeTab === 'home' ? (isHomeDay ? 'text-[#1e2e18] drop-shadow' : 'text-white/90 drop-shadow') : 'text-stone-600'}`} />
             </div>
           </div>
         </nav>
@@ -834,7 +996,7 @@ export default function App() {
         {subPage === 'pastoral_stats' && (
           <PastoralStatsDashboardView
             user={currentUser}
-            users={users.length > 0 ? users : mockDb.users}
+            users={approvedUsers}
             forests={mergedForests}
             attendance={attendance}
             pastoralRecords={pastoralRecords}
@@ -843,7 +1005,7 @@ export default function App() {
             onShowToast={showToast}
           />
         )}
-        {subPage === 'forest_board' && <ForestBoardView user={currentUser} forestId={selectedForestId} forests={forests} users={users} forestPosts={forestPosts} onBack={() => setSubPage(null)} />}
+        {subPage === 'forest_board' && <ForestBoardView user={currentUser} forestId={selectedForestId} forests={forests} users={approvedUsers} forestPosts={forestPosts} onBack={() => setSubPage(null)} />}
         {subPage === 'forest_community' && (
           <ForestCommunityView onBack={() => setSubPage(null)} user={currentUser} userData={userData} onShowToast={showToast} />
         )}
@@ -853,7 +1015,7 @@ export default function App() {
             programId={selectedProgramId} 
             programs={programs} 
             attendance={attendance.filter((a: any) => a.type === '프로그램신청')}
-            users={users}
+            users={approvedUsers}
             onBack={() => setSubPage(null)} 
             onShowToast={showToast} 
           />
@@ -954,7 +1116,7 @@ export default function App() {
             <HomeView
               kidsCares={kidsCares}
               user={currentUser}
-              users={users.length > 0 ? users : mockDb.users}
+              users={approvedUsers}
               forests={mergedForests}
               schedules={schedules.length > 0 ? schedules : mockDb.schedules}
               surveys={surveys}
@@ -963,6 +1125,11 @@ export default function App() {
               onNavigateToMyForestBoard={handleNavigateToMyForestBoard}
               onNavigate={(page: string) => setSubPage(page)}
               onNavigateToKidsDetail={(id: string) => { setSelectedKidsCareId(id); setSubPage('kids_care_detail'); }}
+              onNavigateToSchedule={(schedule: any) => {
+                setSelectedCalendarSchedule(schedule);
+                setActiveTab('calendar');
+                setSubPage(null);
+              }}
             />
           </div>
         )}
@@ -1067,7 +1234,15 @@ export default function App() {
             onShowToast={showToast}
           />
         )}
-        {!subPage && activeTab === 'calendar' && <CalendarView user={currentUser} schedules={schedules.length > 0 ? schedules : mockDb.schedules} onShowToast={showToast} />}
+        {!subPage && activeTab === 'calendar' && (
+          <CalendarView 
+            user={currentUser} 
+            schedules={schedules.length > 0 ? schedules : mockDb.schedules} 
+            onShowToast={showToast} 
+            initialSchedule={selectedCalendarSchedule}
+            onClearInitialSchedule={() => setSelectedCalendarSchedule(null)}
+          />
+        )}
         {!subPage && activeTab === 'kids' && (
           <KidsView
             user={currentUser}
@@ -1828,18 +2003,18 @@ export function ScheduleItem({ month, day, dDay, time, title, location, dDayClas
   );
 }
 
-function BottomNavItem({ icon, label, id, activeTab, onClick }: any) {
+function BottomNavItem({ icon, label, id, activeTab, onClick, nightMode }: any) {
   const isActive = activeTab === id;
   if (isActive) {
     return (
-      <button className="flex flex-col items-center justify-center bg-[#006948]/10 text-[#006948] rounded-full px-3 py-2 active:scale-90 transition-transform duration-300">
+      <button className={`flex flex-col items-center justify-center rounded-full px-3 py-2 active:scale-90 transition-transform duration-300 ${nightMode ? 'bg-blue-500/20 text-blue-300' : 'bg-[#006948]/10 text-[#006948]'}`}>
         {icon}
         <span className="font-headline text-[10px] font-semibold tracking-wide mt-1 whitespace-nowrap">{label}</span>
       </button>
     );
   }
   return (
-    <button onClick={() => onClick(id)} className="flex flex-col items-center justify-center text-stone-500 hover:text-[#006948] px-3 py-2 active:scale-90 transition-transform duration-300">
+    <button onClick={() => onClick(id)} className={`flex flex-col items-center justify-center px-3 py-2 active:scale-90 transition-transform duration-300 ${nightMode ? 'text-white/50 hover:text-blue-200' : 'text-stone-500 hover:text-[#006948]'}`}>
       {icon}
       <span className="font-headline text-[10px] font-semibold tracking-wide mt-1 whitespace-nowrap">{label}</span>
     </button>

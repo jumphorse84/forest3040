@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;400;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -58,6 +59,7 @@
   --font-body: "Manrope", sans-serif;
   --font-label: "Manrope", sans-serif;
   --font-serif: "Noto Serif KR", serif;
+  --font-display: "Cormorant Garamond", serif;
 }
 
 @layer utilities {
@@ -184,3 +186,10 @@ body {
 .animate-leaf-sway { animation: leafSway 4s ease-in-out infinite; }
 .animate-leaf-sway-reverse { animation: leafSwayReverse 4.5s ease-in-out infinite; }
 .animate-sunlight { animation: sunlightShimmer 8s infinite linear; }
+
+/* 3D 나무 떠있는 애니메이션 */
+@keyframes tree-float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+.animate-float { animation: tree-float 5s ease-in-out infinite; }

@@ -55,6 +55,7 @@ service cloud.firestore {
                         (!('permissions' in request.resource.data) || !('permissions' in resource.data) || request.resource.data.permissions == resource.data.permissions || isAdmin())
                       ) : 
                       isAdmin();
+      allow delete: if isAdmin();
     }
 
     // Forest rules
@@ -206,7 +207,13 @@ service cloud.firestore {
     // Family News rules
     match /family_news/{newsId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isAdmin() || isLeader() || isPastor();
+      allow create, delete: if isAdmin() || isLeader() || isPastor();
+      allow update: if isAdmin() || isLeader() || isPastor() || 
+        (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']));
+      
+      match /comments/{commentId} {
+        allow read, write: if isAuthenticated();
+      }
     }
 
     // Notifications rules

@@ -79,12 +79,25 @@ const AdminUserManagementView = ({ users, onBack, onShowToast }: any) => {
 
   const handleRejectUser = async (e: React.MouseEvent, userId: string) => {
     e.stopPropagation();
-    if (window.confirm("정말로 이 대기자를 거절 및 삭제하시겠습니까? (DB에서 데이터 삭제)")) {
+    if (window.confirm("정말로 이 대기자를 거절하시겠습니까?\n(거절된 사용자는 다시 가입 신청을 할 수 없습니다)")) {
       try {
-        await deleteDoc(doc(firestoreDb, 'users', userId));
-        onShowToast('가입이 거절 및 삭제되었습니다.');
+        await updateDoc(doc(firestoreDb, 'users', userId), { status: 'rejected' });
+        onShowToast('가입이 거절 처리되었습니다.');
       } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, `users/${userId}`);
+        handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
+      }
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+    if (window.confirm(`정말로 '${selectedUser.name}' 회원의 계정을 영구 삭제하시겠습니까?\n(삭제 후 복구할 수 없습니다)`)) {
+      try {
+        await deleteDoc(doc(firestoreDb, 'users', selectedUser.uid));
+        onShowToast('회원 계정이 영구 삭제되었습니다.');
+        setSelectedUser(null);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.DELETE, `users/${selectedUser.uid}`);
       }
     }
   };
@@ -170,9 +183,14 @@ const AdminUserManagementView = ({ users, onBack, onShowToast }: any) => {
                 <label className="text-xs font-bold text-on-surface-variant mb-1 block">미션 점수</label>
                 <input type="number" value={editProfile.score} onChange={e => setEditProfile({...editProfile, score: e.target.value})} className="w-full bg-surface-container p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-primary" />
               </div>
-              <button onClick={handleSaveProfile} className="w-full mt-2 py-3 bg-primary text-on-primary rounded-xl font-bold shadow-sm active:scale-95 transition-all">
-                프로필 정보 저장
-              </button>
+              <div className="flex gap-2 mt-4">
+                <button onClick={handleSaveProfile} className="flex-1 py-3 bg-primary text-on-primary rounded-xl font-bold shadow-sm active:scale-95 transition-all">
+                  프로필 정보 저장
+                </button>
+                <button onClick={handleDeleteUser} className="px-4 py-3 bg-error-container text-on-error-container rounded-xl font-bold shadow-sm active:scale-95 transition-all flex items-center justify-center">
+                  <Trash2 size={20} />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -255,7 +273,7 @@ const AdminUserManagementView = ({ users, onBack, onShowToast }: any) => {
         <section className="space-y-4">
           <h2 className="text-sm font-bold text-outline uppercase tracking-widest pl-1">승인된 회원 명단</h2>
           <div className="space-y-3">
-            {users.filter((u: any) => u.status !== 'pending').map((u: any) => (
+            {users.filter((u: any) => u.status === 'approved' || !u.status).map((u: any) => (
               <div 
                 key={u.uid} 
                 onClick={() => handleSelectUser(u)}
@@ -280,6 +298,48 @@ const AdminUserManagementView = ({ users, onBack, onShowToast }: any) => {
             ))}
           </div>
         </section>
+
+        {/* Rejected Users */}
+        {users.filter((u: any) => u.status === 'rejected').length > 0 && (
+          <section className="space-y-4">
+            <h2 className="text-sm font-bold text-error/80 flex items-center gap-2">
+              <XCircle size={14} />
+              거절된 사용자
+            </h2>
+            <div className="space-y-3">
+              {users.filter((u: any) => u.status === 'rejected').map((u: any) => (
+                <div key={u.uid} className="bg-red-50/50 p-4 rounded-2xl border border-red-200/50 shadow-sm flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-red-100 text-red-700 rounded-full flex items-center justify-center font-bold">
+                      {u.name?.charAt(0) || '?'}
+                    </div>
+                    <div>
+                      <p className="font-bold text-red-900">{u.name}</p>
+                      <p className="text-xs text-red-700/70">{u.email || '이메일 없음'}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`'${u.name}' 사용자를 DB에서 완전히 삭제하시겠습니까?`)) {
+                        try {
+                          await (await import('firebase/firestore')).deleteDoc(doc(firestoreDb, 'users', u.uid));
+                          onShowToast('사용자가 완전히 삭제되었습니다.');
+                        } catch (err) {
+                          handleFirestoreError(err, OperationType.DELETE, `users/${u.uid}`);
+                        }
+                      }
+                    }}
+                    className="px-3 py-2 bg-white text-error text-xs font-bold rounded-xl border border-error/20 active:scale-95 transition-transform shadow-sm flex items-center gap-1"
+                  >
+                    <Trash2 size={13} />
+                    완전삭제
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );

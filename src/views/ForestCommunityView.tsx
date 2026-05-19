@@ -81,6 +81,8 @@ interface ChatMsg { id:string; senderName:string; avatar:string; text:string; ti
 interface ColumnData { title:string; content:string; authorName:string; authorRealName:string; authorRole:string; authorAvatar:string; timestamp:string; claps:number; userId?:string; }
 interface UserProfile { username:string; realName:string; avatar:string; }
 interface Forest { id:string; name:string; emoji:string; count:number; image:string; }
+interface WeeklyTopic { id:string; bibleRef:string; question:string; authorName:string; timestamp:string; weekNum:number; }
+interface NanungCard { id:string; forestId:string; userId:string; authorName:string; authorAvatar:string; text:string; timestamp:string; weekNum:number; topicId?:string; }
 
 const FORESTS: Forest[] = [
   { id:'bebe', name:'베베숲', emoji:'👶', count:1, image:'https://i.postimg.cc/T1nHzgcx/Kakao_Talk_20251027_142153350_03.png' },
@@ -294,12 +296,13 @@ function StoryViewer({stories,username,avatar,onReact,uid,onDeleteStory}: {stori
 // ──────────────────────────────────────────────────
 // FOREST CAROUSEL
 // ──────────────────────────────────────────────────
-function ForestCarousel({items,onItemClick,dutyForestId}:{items:{id:string;name:string;src:string;emoji:string}[];onItemClick:(id:string)=>void;dutyForestId?:string}) {
+function ForestCarousel({items,onItemClick,dutyForestId,userForestId,isAdmin}:{items:{id:string;name:string;src:string;emoji:string}[];onItemClick:(id:string)=>void;dutyForestId?:string;userForestId?:string;isAdmin?:boolean}) {
   const [cur,setCur]=useState(Math.floor(items.length/2));
   const handleDrag=(_:any,info:PanInfo)=>{
     if(info.offset.x<-40||info.velocity.x<-400) setCur(p=>Math.min(items.length-1,p+1));
     else if(info.offset.x>40||info.velocity.x>400) setCur(p=>Math.max(0,p-1));
   };
+  const canEnter = (id:string) => isAdmin || !userForestId || id === userForestId;
   return (
     <motion.div className="relative w-full h-[280px] flex flex-col items-center justify-center touch-none cursor-grab active:cursor-grabbing"
       drag="x" dragConstraints={{left:0,right:0}} dragElastic={0.1} onDragEnd={handleDrag}>
@@ -311,17 +314,22 @@ function ForestCarousel({items,onItemClick,dutyForestId}:{items:{id:string;name:
             <motion.div key={item.id} className="absolute flex flex-col items-center pointer-events-auto cursor-pointer"
               animate={{x:off*85,scale:active?1.3:Math.max(0.6,1-abs*0.15),opacity:active?1:Math.max(0,0.8-abs*0.25),zIndex:20-abs}}
               transition={{type:'spring',stiffness:350,damping:30}}
-              onClick={()=>active?onItemClick(item.id):setCur(i)}>
+              onClick={()=>active?(canEnter(item.id)?onItemClick(item.id):alert('이 숲은 소속 멤버만 입장할 수 있어요 🌿')):setCur(i)}>
               <div className="relative">
                 <div className={cn('w-[80px] h-[80px] rounded-full overflow-hidden transition-all',
                   active?'border-[3px] border-emerald-500 ring-4 ring-emerald-500/20 shadow-[0_8px_20px_rgba(16,185,129,0.3)]':'border-2 border-white shadow-sm',
                   isDuty&&!active?'ring-2 ring-amber-400':''
                 )}>
-                  <img src={item.src} alt={item.name} className="w-full h-full object-cover bg-slate-100" draggable={false}/>
+                  <img src={item.src} alt={item.name} className={cn('w-full h-full object-cover bg-slate-100',!canEnter(item.id)&&!active&&'grayscale opacity-50')} draggable={false}/>
                 </div>
                 {isDuty && (
                   <div className="absolute -top-3 -right-2 bg-amber-400 text-[14px] leading-none p-1.5 rounded-full shadow-md border-2 border-white transform rotate-12 z-50 animate-bounce">
                     👑
+                  </div>
+                )}
+                {!canEnter(item.id) && active && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-2xl">🔒</span>
                   </div>
                 )}
               </div>
@@ -986,9 +994,20 @@ const ForestCommunityView = ({ onBack, user, userData, onShowToast }: { onBack?:
   const [isWritingColumnMain, setIsWritingColumnMain] = useState(false);
   const [editingColumn, setEditingColumn] = useState<(ColumnData & {weekNum?: number})|null>(null);
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+  const [weeklyTopics, setWeeklyTopics] = useState<WeeklyTopic[]>([]);
+  const [nanungCards, setNanungCards] = useState<NanungCard[]>([]);
+  const [nanungText, setNanungText] = useState('');
+  const [isTopicWriteOpen, setIsTopicWriteOpen] = useState(false);
+  const [topicBible, setTopicBible] = useState('');
+  const [topicQuestion, setTopicQuestion] = useState('');
 
+  const isAdmin = userData?.role === 'admin';
+  const userForestId = userData?.forest_id || null;
+  const isLeader = userData?.role === 'leader' || isAdmin;
   const activeForest = FORESTS.find(f => f.id === activeForestId);
   const weekInfo = useMemo(() => getCurrentWeekInfo(), []);
+  const currentTopic = weeklyTopics.find(t => t.weekNum === weekInfo.weekNum) || weeklyTopics[0] || null;
+  const currentNanung = nanungCards.filter(n => n.forestId === activeForestId && n.weekNum === weekInfo.weekNum);
 
   // Initialize profile from userData
   useEffect(() => {
@@ -1088,6 +1107,71 @@ const ForestCommunityView = ({ onBack, user, userData, onShowToast }: { onBack?:
     });
     return () => unsub();
   }, []);
+
+  // Real-time Weekly Topics Listener
+  useEffect(() => {
+    const q = query(collection(db, 'weekly_topics'), orderBy('timestamp', 'desc'));
+    const unsub = onSnapshot(q, (snap) => {
+      const topics = snap.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp?.toDate?.()?.toISOString() || new Date().toISOString() } as WeeklyTopic));
+      setWeeklyTopics(topics);
+    }, () => {
+      const unsub2 = onSnapshot(collection(db, 'weekly_topics'), (snap) => {
+        const topics = snap.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp?.toDate?.()?.toISOString() || new Date().toISOString() } as WeeklyTopic));
+        setWeeklyTopics(topics);
+      });
+      return unsub2;
+    });
+    return () => unsub();
+  }, []);
+
+  // Real-time Nanung Cards Listener
+  useEffect(() => {
+    if (!activeForestId) return;
+    const q = query(collection(db, 'nanung_cards'), where('forestId', '==', activeForestId), orderBy('timestamp', 'asc'));
+    const unsub = onSnapshot(q, (snap) => {
+      const cards = snap.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp?.toDate?.()?.toISOString() || new Date().toISOString() } as NanungCard));
+      setNanungCards(cards);
+    }, () => {
+      const unsub2 = onSnapshot(query(collection(db, 'nanung_cards'), where('forestId', '==', activeForestId)), (snap) => {
+        const cards = snap.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp?.toDate?.()?.toISOString() || new Date().toISOString() } as NanungCard)).sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        setNanungCards(cards);
+      });
+      return unsub2;
+    });
+    return () => unsub();
+  }, [activeForestId]);
+
+  const handleSendNanung = useCallback(async () => {
+    if (!nanungText.trim() || !user || !activeForestId || !profile) return;
+    try {
+      await addDoc(collection(db, 'nanung_cards'), {
+        forestId: activeForestId,
+        userId: user.uid,
+        authorName: userData?.name || profile.username,
+        authorAvatar: userData?.profile_image || profile.avatar,
+        text: nanungText.trim(),
+        timestamp: serverTimestamp(),
+        weekNum: weekInfo.weekNum,
+        topicId: currentTopic?.id || null,
+      });
+      setNanungText('');
+    } catch (e) { console.error(e); }
+  }, [nanungText, user, activeForestId, profile, userData, weekInfo.weekNum, currentTopic]);
+
+  const handlePublishTopic = useCallback(async () => {
+    if (!topicBible.trim() || !topicQuestion.trim() || !user) return;
+    try {
+      await addDoc(collection(db, 'weekly_topics'), {
+        bibleRef: topicBible.trim(),
+        question: topicQuestion.trim(),
+        authorName: userData?.name || '목사님',
+        timestamp: serverTimestamp(),
+        weekNum: weekInfo.weekNum,
+      });
+      setTopicBible(''); setTopicQuestion(''); setIsTopicWriteOpen(false);
+      onShowToast?.('이번 주 토픽이 발행되었습니다 🌿');
+    } catch (e) { console.error(e); }
+  }, [topicBible, topicQuestion, user, userData, weekInfo.weekNum, onShowToast]);
 
   const handleSend = useCallback(async (text: string, imageUrl?: string, replyTo?: any) => {
     if (!activeForestId || !profile || !user) return;
@@ -1194,25 +1278,78 @@ const ForestCommunityView = ({ onBack, user, userData, onShowToast }: { onBack?:
 
   if (activeForest) {
     return (
-      <div className="absolute inset-0 z-50 bg-white">
-        <ForestRoom
-          forest={activeForest} onBack={() => setActiveForestId(null)}
-          messages={allChats[activeForest.id] || []} onSendMessage={handleSend}
-          onAddStory={handleAddStory} isWeeklyTurn={activeForest.id === weekInfo.forest.id}
-          currentColumnData={weeklyColumns[weekInfo.weekNum]}
-          onWriteColumn={handleWriteColumn}
-          profile={profile}
-          forestStories={forestStories[activeForest.id] || []}
-          onReactStory={handleReactStory}
-          uid={user?.uid}
-          isAdmin={userData?.role === 'admin'}
-          onDeleteChat={handleDeleteChat}
-          onDeleteColumn={async (weekNum) => {
-            if (window.confirm('정말로 이 칼럼을 삭제하시겠습니까?')) {
-              await deleteDoc(doc(db, 'weekly_columns', `week-${weekNum}`));
-            }
-          }}
-        />
+      <div className="absolute inset-0 z-50 bg-slate-50 flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 bg-white/90 backdrop-blur-md border-b border-slate-200 shrink-0">
+          <button onClick={() => setActiveForestId(null)} className="p-2 -ml-2 rounded-full hover:bg-slate-100">
+            <ChevronLeft size={24} className="text-slate-700"/>
+          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">{activeForest.emoji}</span>
+            <h2 className="text-lg font-bold text-slate-800">{activeForest.name}</h2>
+          </div>
+          <div className="w-8"/>
+        </div>
+        {/* Topic Pin */}
+        {currentTopic && (
+          <div className="mx-4 mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl shrink-0">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-bold text-white bg-emerald-600 px-2 py-0.5 rounded-full">{weekInfo.weekNum}주차 토픽 📖</span>
+              <span className="text-xs text-slate-400">{currentTopic.authorName}</span>
+            </div>
+            <p className="text-sm font-bold text-emerald-800">{currentTopic.bibleRef}</p>
+            <p className="text-sm text-emerald-700 mt-1">❓ {currentTopic.question}</p>
+          </div>
+        )}
+        {/* Nanung Cards */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {currentNanung.length === 0 ? (
+            <div className="text-center py-16 text-slate-400 text-sm">아직 나눔이 없습니다. 첫 번째 나눔을 남겨보세요 🌿</div>
+          ) : (
+            currentNanung.map(card => (
+              <div key={card.id} className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex gap-3">
+                <div className="w-9 h-9 rounded-full overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                  <img src={card.authorAvatar} alt={card.authorName} className="w-full h-full object-cover"/>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-slate-600 mb-1">{card.authorName} <span className="font-normal text-slate-400">{formatTimestamp(card.timestamp)}</span></p>
+                  <p className="text-sm text-slate-800 leading-relaxed">{card.text}</p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        {/* Nanung Input */}
+        <div className="p-4 bg-white border-t border-slate-200 shrink-0">
+          {isLeader && weeklyColumns[weekInfo.weekNum] === undefined && activeForest.id === weekInfo.forest.id && (
+            <button onClick={() => setIsWritingColumnMain(true)} className="w-full mb-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm font-bold text-amber-700 flex items-center justify-center gap-2">
+              ✍️ 이번 주 나눔으로 칼럼 작성하기
+            </button>
+          )}
+          <div className="flex gap-2 items-end">
+            <textarea
+              value={nanungText}
+              onChange={e => setNanungText(e.target.value)}
+              placeholder={currentTopic ? `"${currentTopic.question}" 에 대한 나눔을 남겨보세요...` : '이번 주 말씀 나눔을 한 줄로 남겨보세요...'}
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 resize-none focus:outline-none focus:border-emerald-400"
+              rows={2}
+              maxLength={150}
+            />
+            <button onClick={handleSendNanung} disabled={!nanungText.trim()}
+              className="p-3 bg-emerald-500 text-white rounded-xl disabled:opacity-40 shrink-0 active:scale-95 transition-all">
+              <Send size={18}/>
+            </button>
+          </div>
+        </div>
+        {/* Column Write Modal */}
+        <AnimatePresence>
+          {isWritingColumnMain && profile && (
+            <ColumnWriteModal isOpen={isWritingColumnMain}
+              onClose={() => setIsWritingColumnMain(false)}
+              onSave={(data) => { handleWriteColumn(data); setIsWritingColumnMain(false); }}
+              profile={profile} initialData={null} />
+          )}
+        </AnimatePresence>
       </div>
     );
   }
@@ -1228,25 +1365,49 @@ const ForestCommunityView = ({ onBack, user, userData, onShowToast }: { onBack?:
       </div>
 
       <div className="px-4 py-6 space-y-5 max-w-md mx-auto pb-20">
-        {/* 실시간 스토리 */}
-        <div className="bg-white/80 rounded-[2rem] p-5 shadow-sm border border-slate-200">
-          <h3 className="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wider">실시간 숲 스토리</h3>
-          <div className="flex gap-4 overflow-x-auto pb-2" style={{scrollbarWidth:'none'}}>
-            {FORESTS.filter(f => forestStories[f.id]?.length > 0).length === 0
-              ? <div className="text-xs text-slate-400 flex items-center h-[72px]">아직 공유된 스토리가 없습니다.</div>
-              : FORESTS.filter(f => forestStories[f.id]?.length > 0).map(f => (
-                  <StoryViewer key={f.id} stories={forestStories[f.id]} username={f.name} avatar={f.image} onReact={handleReactStory} uid={user?.uid} onDeleteStory={handleDeleteStory}/>
-                ))}
+
+        {/* 이번 주 토픽 카드 */}
+        <div className="bg-emerald-50 rounded-[2rem] p-5 shadow-sm border border-emerald-200">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-bold text-emerald-700 uppercase tracking-wider">📖 이번 주 토픽</h3>
+            {isAdmin && (
+              <button onClick={() => setIsTopicWriteOpen(true)} className="text-xs font-bold text-white bg-emerald-600 px-3 py-1 rounded-full">토픽 발행</button>
+            )}
           </div>
+          {currentTopic ? (
+            <>
+              <p className="text-sm font-bold text-emerald-900">{currentTopic.bibleRef}</p>
+              <p className="text-sm text-emerald-800 mt-1">❓ {currentTopic.question}</p>
+              <p className="text-[11px] text-emerald-600 mt-2">by {currentTopic.authorName} · {weekInfo.weekNum}주차</p>
+            </>
+          ) : (
+            <p className="text-sm text-slate-400">이번 주 토픽이 아직 발행되지 않았습니다.</p>
+          )}
         </div>
+
+        {/* 토픽 작성 모달 */}
+        <AnimatePresence>
+          {isTopicWriteOpen && (
+            <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-[300] bg-black/50 flex items-center justify-center p-4" onClick={() => setIsTopicWriteOpen(false)}>
+              <motion.div initial={{scale:0.95,y:20}} animate={{scale:1,y:0}} exit={{scale:0.95}} className="bg-white w-full max-w-sm rounded-[2rem] p-6 shadow-2xl" onClick={e=>e.stopPropagation()}>
+                <h2 className="text-lg font-bold text-emerald-700 mb-4">📖 이번 주 토픽 발행</h2>
+                <div className="space-y-3">
+                  <input value={topicBible} onChange={e=>setTopicBible(e.target.value)} placeholder="성경 본문 (예: 요한복음 15:1-5)" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none"/>
+                  <textarea value={topicQuestion} onChange={e=>setTopicQuestion(e.target.value)} placeholder="묵상 질문" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm resize-none h-24 focus:outline-none"/>
+                </div>
+                <button onClick={handlePublishTopic} disabled={!topicBible.trim()||!topicQuestion.trim()} className="w-full mt-4 bg-emerald-500 text-white font-bold py-3 rounded-xl disabled:opacity-50">발행하기 🌿</button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* 캐러셀 */}
         <div className="bg-white/80 rounded-[2rem] p-6 shadow-sm border border-slate-200 overflow-hidden">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wider">원하는 숲을 선택하세요</h3>
+            <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wider">나눔방 입장</h3>
           </div>
-          <ForestCarousel items={orbitForests} onItemClick={setActiveForestId} dutyForestId={weekInfo.forest.id}/>
-          <p className="mt-2 text-[12px] text-slate-400 text-center">좌우로 스와이프해서 숲을 둘러보세요</p>
+          <ForestCarousel items={orbitForests} onItemClick={setActiveForestId} dutyForestId={weekInfo.forest.id} userForestId={userForestId} isAdmin={isAdmin}/>
+          <p className="mt-2 text-[12px] text-slate-400 text-center">소속 숲의 나눔방에 입장하세요 🌲</p>
         </div>
 
         {/* 숲 이야기 다시 읽기 (스크롤 리스트) */}

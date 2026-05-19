@@ -24,6 +24,7 @@ import { VISIT_CATEGORIES } from '../components/PastoralCardModal';
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
 import { FamilyNewsEditorModal } from '../components/FamilyNewsEditorModal';
+import { FamilyNewsDetailModal } from '../components/FamilyNewsDetailModal';
 
 const getLocalTodayStr = (date = new Date()) => {
   const formatter = new Intl.DateTimeFormat('ko-KR', {
@@ -133,13 +134,96 @@ const WeatherBackground = ({ weatherType, isDay }: { weatherType: string | null;
   );
 };
 
-const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares = [], users = [], forests = [], onNavigateToMyForestBoard, onNavigate, onNavigateToKidsDetail }: any) => {
+const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares = [], users = [], forests = [], onNavigateToMyForestBoard, onNavigate, onNavigateToKidsDetail, onNavigateToSchedule }: any) => {
 
   const [weatherType, setWeatherType] = useState<string | null>(null);
   const [isDay, setIsDay] = useState<boolean>(() => {
     const hours = new Date().getHours();
-    return hours >= 6 && hours < 18;
+    return hours >= 6 && hours < 19;
   });
+
+  // 회원 관리 상태 계산
+  const pendingUsers = useMemo(() => {
+    return (users || []).filter((u: any) => u.status === 'pending');
+  }, [users]);
+
+  const isAdmin = user?.role === 'admin' || user?.email === 'jumphorse@nate.com' || user?.email === 'seokgwan.ms01@gmail.com';
+
+  const recentlyJoined = useMemo(() => {
+    return (users || []).filter((u: any) => {
+      if (u.status !== 'approved') return false;
+      if (!u.createdAt) return false;
+      const createdDate = u.createdAt?.toDate ? u.createdAt.toDate() : new Date(u.createdAt);
+      const diffTime = Date.now() - createdDate.getTime();
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
+      return diffDays <= 7; // 최근 7일 이내 가입자
+    }).sort((a: any, b: any) => {
+      const tA = a.createdAt?.seconds || 0;
+      const tB = b.createdAt?.seconds || 0;
+      return tB - tA;
+    });
+  }, [users]);
+
+  const [currentWelcomeIndex, setCurrentWelcomeIndex] = useState(0);
+
+  useEffect(() => {
+    if (recentlyJoined.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentWelcomeIndex(prev => (prev + 1) % recentlyJoined.length);
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [recentlyJoined.length]);
+
+  // Time-based brightness overlay
+  const getTimeOverlay = (h: number, m: number): { color: string; opacity: number } => {
+    const t = h + m / 60; // e.g. 6.5 = 6:30
+    if (t >= 6 && t < 9) {
+      // 아침: 따뜻한 황금빛
+      const ratio = (t - 6) / 3;
+      return { color: '255,220,120', opacity: 0.18 - ratio * 0.18 };
+    } else if (t >= 9 && t < 14) {
+      // 오전~낮: 가장 밝음, 오버레이 없음
+      return { color: '255,255,255', opacity: 0 };
+    } else if (t >= 14 && t < 17) {
+      // 오후: 황금빛 서서히
+      const ratio = (t - 14) / 3;
+      return { color: '255,180,80', opacity: ratio * 0.12 };
+    } else if (t >= 17 && t < 19) {
+      // 해질녘: 노을 붉은빛
+      const ratio = (t - 17) / 2;
+      return { color: '220,80,40', opacity: 0.12 + ratio * 0.12 };
+    } else if (t >= 19 && t < 21) {
+      // 초저녁: 밤 시작, 가볍게 어두움
+      return { color: '10,20,60', opacity: 0.10 };
+    } else if (t >= 21 && t < 24) {
+      // 밤: 점점 어두워짐
+      const ratio = (t - 21) / 3;
+      return { color: '0,5,30', opacity: 0.15 + ratio * 0.20 };
+    } else if (t >= 0 && t < 4) {
+      // 자정~새벽: 가장 어두움
+      return { color: '0,0,15', opacity: 0.35 };
+    } else {
+      // 새벽 4~6시: 서서히 밝아짐
+      const ratio = (t - 4) / 2;
+      return { color: '80,50,120', opacity: 0.25 - ratio * 0.25 };
+    }
+  };
+
+  const [timeOverlay, setTimeOverlay] = useState(() => {
+    const now = new Date();
+    return getTimeOverlay(now.getHours(), now.getMinutes());
+  });
+
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      setTimeOverlay(getTimeOverlay(now.getHours(), now.getMinutes()));
+    };
+    tick();
+    const interval = setInterval(tick, 60000); // 매 1분마다 업데이트
+    return () => clearInterval(interval);
+  }, []);
+
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
 
   // Quick Menu New Badge States
@@ -240,6 +324,7 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
   const [familyNews, setFamilyNews] = useState<any[]>([]);
   const [isFamilyNewsModalOpen, setIsFamilyNewsModalOpen] = useState(false);
   const [editingFamilyNews, setEditingFamilyNews] = useState<any>(null);
+  const [selectedNews, setSelectedNews] = useState<any>(null);
   const todayStr = getLocalTodayStr();
   const fruitCacheKey = `daily_fruit_${user?.uid}_${todayStr}`;
   const fruitCountKey = `daily_fruit_count_${user?.forest_id || user?.forest}`;
@@ -395,8 +480,9 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
       }, 0);
   }, [kidsCares, user?.forest_id]);
 
-  // Total display count = kidsCare fruits + all-time daily fruits count
-  const totalFruitCount = teamFruitCount + (allDailyFruitsCount[user?.forest_id || user?.forest] || 0);
+  // Total display count = forest_fruit_counts 기반 물주기 누적만 표시
+  // (관리자 초기화 대상과 동일한 값으로 일치시킴)
+  const totalFruitCount = allDailyFruitsCount[user?.forest_id || user?.forest] || 0;
 
   // [최적화] 내 숲의 daily_fruits만 구독 (오늘 물주기 여부 & 내 숲 카운트 확인)
   useEffect(() => {
@@ -432,16 +518,13 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
 
   const leaderboard = useMemo(() => {
     return (forests || []).map((f: any) => {
-      const kcFruits = (kidsCares || [])
-        .filter((c: any) => c.assigned_forest_id === f.id || c.assigned_forest_id === f.forest_id)
-        .reduce((sum: number, c: any) => {
-          const regs = Object.values(c.registrations || {}) as number[];
-          return sum + regs.reduce((s, v) => s + v, 0);
-        }, 0);
-      const dFruits = allDailyFruitsCount[f.id] || allDailyFruitsCount[f.forest_id] || 0;
-      return { forestName: f.name, count: kcFruits + dFruits, emoji: f.emoji };
+      // forest_fruit_counts의 문서 ID = forest_id (관리자 초기화 대상과 동일 키 사용)
+      // f.id(Firestore 자동생성 ID)가 아닌 f.forest_id를 우선 사용해야 초기화 후 0이 정확히 반영됨
+      const forestKey = f.forest_id || f.id;
+      const dFruits = allDailyFruitsCount[forestKey] ?? 0;
+      return { forestName: f.name, count: dFruits, emoji: f.emoji, forest_id: forestKey };
     }).sort((a: any, b: any) => b.count - a.count);
-  }, [forests, kidsCares, allDailyFruitsCount]);
+  }, [forests, allDailyFruitsCount]);
 
   const handleWaterTree = async () => {
     const forestId = user?.forest_id || user?.forest;
@@ -503,9 +586,10 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
     const now = Date.now();
 
     // 30분 이내의 캐시만 사용
+    // ★ 캐시된 isDay도 항상 로컬 시간으로 재검증 (캐시 저장 당시와 현재 시간대가 달라질 수 있음)
     if (cachedWeather && cachedIsDay && cachedTime && (now - Number(cachedTime) < 1800000)) {
       setWeatherType(cachedWeather);
-      setIsDay(cachedIsDay === 'true');
+      setIsDay(getIsDayByTime()); // ← 캐시 isDay 무시, 항상 현재 시간 기준
       return;
     }
 
@@ -538,15 +622,17 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
 
             if (data?.current_weather?.weathercode !== undefined) {
               const code = data.current_weather.weathercode;
-              const isDayData = data.current_weather.is_day === 1; // 실제 일출/일몰 기준
+              // ★ isDay는 항상 로컬 시간 기준으로만 판단 (API is_day 필드 무시)
+              // → API is_day는 천문 일출/일몰 기준이라 경계값이 달라 GIF가 뒤바뀌는 버그 방지
+              const isDayVal = getIsDayByTime();
               let type = 'clear';
               if (code === 2 || code === 3) type = 'cloudy';
               else if ([51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99].includes(code)) type = 'rain';
               else if ([71, 73, 75, 77, 85, 86].includes(code)) type = 'snow';
 
               setWeatherType(type);
-              setIsDay(isDayData);
-              saveCache(type, isDayData); // 30분 캐시
+              setIsDay(isDayVal);
+              saveCache(type, isDayVal); // 30분 캐시
             } else {
               // API 응답은 왔으나 weathercode 없음 → 시간 기반 fallback
               const isDayVal = getIsDayByTime();
@@ -599,85 +685,174 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
 
   return (
     <>
+      <style>{`
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-up {
+          animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+      `}</style>
       {(isMyBirthday || showConfetti) && <Confetti width={width} height={height} recycle={!showConfetti} numberOfPieces={showConfetti ? 300 : 500} gravity={0.15} style={{ zIndex: 9999, position: 'fixed', top: 0, left: 0 }} />}
-      {/* Greeting Card - Spiritual & Community Dashboard */}
-      <section className={`relative overflow-hidden squircle p-8 text-white shadow-[0_15px_40px_rgba(15,96,69,0.2)] group transition-colors duration-1000 ${
-        !isDay ? (
-          weatherType === 'cloudy' ? 'bg-gradient-to-br from-[#2a3035] to-[#141618]' :
-          weatherType === 'rain' ? 'bg-gradient-to-br from-[#1a2128] to-[#0a1014]' :
-          weatherType === 'snow' ? 'bg-gradient-to-br from-[#2e3b44] to-[#182329]' :
-          'bg-gradient-to-br from-[#1b193f] to-[#0a0821]'
-        ) : (
-          weatherType === 'cloudy' ? 'bg-gradient-to-br from-[#4b5b56] to-[#2c3d36]' :
-          weatherType === 'rain' ? 'bg-gradient-to-br from-[#2a3e4c] to-[#14232c]' :
-          weatherType === 'snow' ? 'bg-gradient-to-br from-[#6b8c8f] to-[#456366]' :
-          'bg-gradient-to-br from-[#0F6045] to-[#1a7858]'
-        )
-      }`}>
-        <WeatherBackground weatherType={weatherType} isDay={isDay} />
-        <div className="relative z-10 flex flex-col h-full justify-between">
-          
-          <div className="mb-6">
-            <h2 className="text-[22px] font-extrabold font-headline mb-1 tracking-tight drop-shadow-sm">
-              {user.name} <span className="opacity-80 text-lg font-medium">님,</span>
-            </h2>
-            <p className="text-[13px] font-medium opacity-90 leading-tight drop-shadow-sm">
-              {getDynamicGreeting()}
-            </p>
-          </div>
-          
-          {/* Bible Verse Area - elegant, no box, no quotes */}
-          <div className="mb-8 border-l-2 border-white/30 pl-4">
-            <p className="text-[14px] font-medium leading-relaxed text-white/90 break-keep drop-shadow-sm">
-              {todaysVerse}
-            </p>
-          </div>
 
-          {/* Gamification - Full-width fruit card + daily watering button */}
-          <div className="mt-auto flex items-stretch gap-3">
-            {/* Fruit count - clickable to modal */}
+      {/* ══ 3D TREE HERO SECTION — Full Bleed Background ══ */}
+      <section
+        className={`relative -mx-6 overflow-hidden ${isDay ? 'bg-[#e0dbc5]' : 'bg-[#152336]'}`}
+        style={{ marginTop: '-120px' }}
+      >
+        {/* Original raw image rendering without mask or shift */}
+        <div 
+          className="absolute inset-0 z-0"
+          style={{
+            backgroundImage: `url('${isDay ? '/tree1b.gif' : '/tree1a.gif'}')`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center 35%',
+            backgroundRepeat: 'no-repeat',
+          }}
+        />
+        {/* Weather particles overlay */}
+        <WeatherBackground weatherType={weatherType} isDay={isDay} />
+
+        {/* Weather-tinted overlay for readability (very subtle) */}
+        {weatherType === 'rain' && <div className="absolute inset-0 bg-slate-900/15 z-[1]" />}
+        {weatherType === 'cloudy' && <div className="absolute inset-0 bg-slate-400/10 z-[1]" />}
+        {/* Time-based brightness overlay */}
+        {timeOverlay.opacity > 0 && (
+          <div
+            className="absolute inset-0 z-[2] pointer-events-none transition-all duration-[60000ms]"
+            style={{ backgroundColor: `rgba(${timeOverlay.color},${timeOverlay.opacity.toFixed(3)})` }}
+          />
+        )}
+        {/* Top greeting — inline style to reliably clear nav bar */}
+        <div className="relative z-20 px-5 pb-2" style={{ paddingTop: '140px' }}>
+          <h2 className={`text-[19px] font-extrabold font-headline tracking-tight ${isDay ? 'text-[#1e2e18]' : 'text-white drop-shadow-md'}`}>
+            안녕하세요, {user.name} 님! 🌿
+          </h2>
+          <p className={`text-[12px] mt-0.5 font-medium ${isDay ? 'text-[#3a4a34]' : 'text-white/90 drop-shadow-md'}`}>
+            {getDynamicGreeting()}
+          </p>
+
+          {/* Admin Pending Users Banner */}
+          {isAdmin && pendingUsers.length > 0 && (
+            <div 
+              onClick={() => onNavigate('admin_users')} // Assuming admin user management route
+              className="mt-3 cursor-pointer overflow-hidden relative rounded-xl bg-gradient-to-r from-amber-500/95 to-orange-400/95 backdrop-blur-md border border-white/20 p-3.5 shadow-[0_4px_15px_rgba(245,158,11,0.3)] flex items-center justify-between active:scale-[0.98] transition-transform"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="bg-white/20 p-1.5 rounded-full">
+                  <span className="text-[16px] animate-pulse leading-none">🌱</span>
+                </div>
+                <span className="text-white text-[13px] font-bold tracking-tight">
+                  새로운 식구 <span className="text-yellow-200">{pendingUsers.length}명</span>이 가입 승인 대기중!
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-white/90" />
+            </div>
+          )}
+        </div>
+
+        {/* Tree area — members card only on right */}
+        <div className="relative z-20 w-full" style={{ minHeight: '500px' }}>
+          {/* Right floating circular card — 숲 구성원 */}
+          <div className="absolute right-4 top-4 z-30">
             <div
               onClick={() => setIsFruitModalOpen(true)}
-              className="flex-1 flex flex-col justify-center gap-0.5 bg-white/10 p-3 rounded-2xl active:scale-[0.98] transition-transform cursor-pointer border border-white/5 hover:bg-white/20 backdrop-blur-md"
+              className={`w-[80px] h-[80px] rounded-full flex flex-col items-center justify-center shadow-xl border cursor-pointer active:scale-95 transition-transform backdrop-blur-md ${isDay ? 'bg-white/80 border-white/50' : 'bg-[#1e3050]/75 border-white/10'}`}
             >
-              <span className="text-[11px] font-bold text-white/60">우리 숲 누적 열매 🌳</span>
-              <span className="text-[22px] font-extrabold text-white leading-tight">{totalFruitCount}<span className="text-[13px] font-bold ml-1 opacity-70">개</span></span>
-            </div>
-
-            {/* Daily watering button */}
-            <button
-              onClick={handleWaterTree}
-              disabled={hasTodayFruit}
-              className={`relative flex flex-col items-center justify-center gap-1 px-4 py-3 rounded-2xl border transition-all active:scale-95 backdrop-blur-md ${
-                hasTodayFruit
-                  ? 'bg-white/5 border-white/10 cursor-default opacity-70'
-                  : 'bg-emerald-400/20 border-emerald-300/30 hover:bg-emerald-400/30 cursor-pointer shadow-lg shadow-emerald-900/20'
-              }`}
-            >
-              {wateringAnim && (
-                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-2xl animate-bounce pointer-events-none">🍎</span>
-              )}
-              <span className="text-2xl">{hasTodayFruit ? '✅' : '💧'}</span>
-              <span className="text-[10px] font-extrabold text-white/80 whitespace-nowrap">
-                {hasTodayFruit ? '수확 완료' : '오늘 물주기'}
+              <Users size={17} className={`mb-0.5 ${isDay ? 'text-[#3a4a34]' : 'text-white/70'}`} />
+              <span className={`text-[9px] font-bold ${isDay ? 'text-[#4a5a44]' : 'text-white/50'}`}>숲 구성원</span>
+              <span className={`text-[13px] font-extrabold font-headline leading-tight ${isDay ? 'text-[#1a2a14]' : 'text-white'}`}>
+                {users.filter((u: any) => u.forest_id === user.forest_id).length}명
               </span>
-            </button>
+            </div>
           </div>
         </div>
-        <div className="absolute -bottom-10 -right-10 w-40 h-40 opacity-[0.06] pointer-events-none">
-          <BookOpen className="w-full h-full text-white" />
-        </div>
+
+        {/* Bottom gradient blend — bridges hero to card area */}
+        <div
+          className="absolute bottom-0 left-0 right-0 h-24 z-[3] pointer-events-none"
+          style={{
+            background: isDay
+              ? 'linear-gradient(to bottom, transparent, #f5f3ed)'
+              : 'linear-gradient(to bottom, transparent, #0d1625)'
+          }}
+        />
+
+        {/* Real-time Welcome Toast */}
+        {recentlyJoined.length > 0 && (
+          <div className="absolute bottom-9 left-0 right-0 z-20 flex justify-center px-5 pointer-events-none">
+            <div 
+              key={recentlyJoined[currentWelcomeIndex].uid}
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-full backdrop-blur-md border shadow-[0_4px_20px_rgba(0,0,0,0.08)] animate-fade-in-up transition-all ${isDay ? 'bg-white/85 border-white/80' : 'bg-[#1e3050]/85 border-white/10'}`}
+            >
+              <span className="text-[15px] leading-none">🎉</span>
+              <span className={`text-[12.5px] font-bold tracking-tight ${isDay ? 'text-[#2a3a24]' : 'text-white/95'}`}>
+                <span className={isDay ? 'text-[#517444] font-extrabold' : 'text-green-300 font-extrabold'}>'{recentlyJoined[currentWelcomeIndex].name}'</span> 님이 3040 숲에 합류하셨습니다!
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Bottom padding for section to make room for overlap */}
+        <div className="h-8 w-full" />
       </section>
 
+      {/* Floating Action Card (Overlap) */}
+      <div className="relative z-30 px-5 -mt-12 mb-6">
+        <div className={`rounded-3xl px-4 py-3 flex items-center justify-between shadow-[0_2px_12px_rgba(0,0,0,0.04)] border ${isDay ? 'bg-[#fbfaf6] border-[#f0eee4]' : 'bg-white/10 backdrop-blur-xl border-white/10'}`}>
+          {/* Left Side: Icon + Texts */}
+          <div
+            onClick={() => setIsFruitModalOpen(true)}
+            className="flex items-center gap-3.5 cursor-pointer active:scale-[0.98] transition-transform"
+          >
+            <div className={`w-[42px] h-[42px] rounded-full flex items-center justify-center shrink-0 shadow-sm ${isDay ? 'bg-[#517444]' : 'bg-[#2a4a34]'}`}>
+              <span className="text-[20px] leading-none ml-0.5">🌳</span>
+            </div>
+            <div className="flex flex-col justify-center gap-0.5">
+              <span className={`text-[14.5px] font-bold tracking-tight ${isDay ? 'text-[#2b2b2b]' : 'text-white'}`}>
+                우리 숲 누적 열매
+              </span>
+              <span className={`text-[12px] font-medium ${isDay ? 'text-[#8b8b8b]' : 'text-white/85'}`}>
+                {totalFruitCount}개
+              </span>
+            </div>
+          </div>
+
+          {/* Right Side: Action Button */}
+          <button
+            onClick={handleWaterTree}
+            disabled={hasTodayFruit}
+            className={`relative px-4 py-2 rounded-full border text-[11.5px] font-bold transition-all active:scale-95 flex items-center justify-center ${
+              hasTodayFruit
+                ? isDay
+                  ? 'bg-transparent border-[#e2e0d6] text-[#9a9a9a] cursor-default'
+                  : 'bg-white/5 border-white/10 text-white/50 cursor-default'
+                : isDay
+                  ? 'bg-transparent border-[#d5d2ca] text-[#4a5a44] hover:bg-[#f2efe6]'
+                  : 'bg-white/20 border-white/20 text-white hover:bg-white/30 backdrop-blur-md'
+            }`}
+          >
+            {wateringAnim && (
+              <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-2xl animate-bounce pointer-events-none">🍎</span>
+            )}
+            {hasTodayFruit ? '수확 완료' : '오늘 물주기'}
+          </button>
+        </div>
+      </div>
+
       {/* Kids Care Duty Notification Removed from inline body - Now handled by Duty Alert Modal */}
+
+
+
 
       {/* Quick Menu */}
       <section className="space-y-3">
         <div className="flex justify-between items-center px-2">
-          <h2 className="font-headline text-xl font-bold tracking-tight text-on-surface">간편 메뉴</h2>
+          <h2 className={`font-headline text-xl font-bold tracking-tight ${isDay ? 'text-on-surface' : 'text-white'}`}>간편 메뉴</h2>
           <button
             onClick={() => setShowAllMenus(true)}
-            className="text-xs font-bold text-primary-dim uppercase tracking-widest cursor-pointer hover:opacity-70 transition-opacity"
+            className={`text-xs font-bold uppercase tracking-widest cursor-pointer hover:opacity-70 transition-opacity ${isDay ? 'text-primary-dim' : 'text-blue-300'}`}
           >
             전체보기
           </button>
@@ -697,7 +872,7 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
             <button
               key={item.label}
               onClick={() => handleMenuClick(item.id, item.onClick)}
-              className={`flex-shrink-0 flex flex-col items-center gap-2 p-3 w-[72px] bg-white rounded-2xl shadow-sm border border-gray-100 active:scale-95 transition-all group ${item.bg}`}
+              className={`flex-shrink-0 flex flex-col items-center gap-2 p-3 w-[72px] rounded-2xl shadow-sm border active:scale-95 transition-all group ${item.bg} ${isDay ? 'bg-white border-gray-100' : 'bg-white/10 backdrop-blur-xl border-white/10'}`}
             >
               <div className="relative w-11 h-11 rounded-xl bg-surface-container flex items-center justify-center group-hover:scale-110 transition-transform">
                 {item.icon}
@@ -705,7 +880,7 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
                   <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 border-2 border-white rounded-full z-10 animate-pulse shadow-sm"></span>
                 )}
               </div>
-              <span className="text-[10px] font-bold text-on-surface-variant whitespace-nowrap">{item.label}</span>
+              <span className={`text-[10px] font-bold whitespace-nowrap ${isDay ? 'text-on-surface-variant' : 'text-white/85'}`}>{item.label}</span>
             </button>
           ))}
         </div>
@@ -765,23 +940,23 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
       {activeSurveys.length > 0 && (
         <section className="space-y-4">
           <div className="flex justify-between items-center px-2">
-            <h2 className="font-headline text-xl font-bold tracking-tight text-on-surface">진행 중인 설문</h2>
-            <span onClick={() => onNavigate('survey')} className="text-xs font-bold text-primary cursor-pointer">더보기</span>
+            <h2 className={`font-headline text-xl font-bold tracking-tight ${isDay ? 'text-on-surface' : 'text-white'}`}>진행 중인 설문</h2>
+            <span onClick={() => onNavigate('survey')} className={`text-xs font-bold cursor-pointer ${isDay ? 'text-primary' : 'text-white/80'}`}>더보기</span>
           </div>
           <div className="space-y-3">
             {activeSurveys.map((survey: any) => (
               <div 
                 key={survey.id} 
                 onClick={() => onNavigate('survey')}
-                className="bg-tertiary-container/20 border border-tertiary-container/30 p-5 rounded-3xl flex items-center justify-between group cursor-pointer hover:bg-tertiary-container/30 transition-all"
+                className={`${isDay ? 'bg-tertiary-container/20 border-tertiary-container/30 hover:bg-tertiary-container/30' : 'bg-white/10 border-white/10 hover:bg-white/20 backdrop-blur-xl'} border p-5 rounded-3xl flex items-center justify-between group cursor-pointer transition-all`}
               >
                 <div className="flex items-center gap-4">
                   <div className="bg-tertiary text-on-tertiary p-2.5 rounded-2xl">
                     <ClipboardList size={20} />
                   </div>
                   <div>
-                    <h3 className="font-bold text-on-surface">{survey.title}</h3>
-                    <p className="text-xs text-on-surface-variant mt-0.5">{survey.deadline?.toDate ? `마감: ${survey.deadline.toDate().toLocaleDateString()}` : '진행 중'}</p>
+                    <h3 className={`font-bold ${isDay ? 'text-on-surface' : 'text-white'}`}>{survey.title}</h3>
+                    <p className={`text-xs mt-0.5 ${isDay ? 'text-on-surface-variant' : 'text-white/70'}`}>{survey.deadline?.toDate ? `마감: ${survey.deadline.toDate().toLocaleDateString()}` : '진행 중'}</p>
                   </div>
                 </div>
                 <ChevronRight size={20} className="text-tertiary group-hover:translate-x-1 transition-transform" />
@@ -794,10 +969,10 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
       {/* Upcoming Schedule Section */}
     <section className="space-y-3">
       <div className="flex justify-between items-center px-2">
-        <h2 className="font-headline text-xl font-bold tracking-tight text-on-surface">다가오는 일정</h2>
+        <h2 className={`font-headline text-xl font-bold tracking-tight ${isDay ? 'text-on-surface' : 'text-white'}`}>다가오는 일정</h2>
         <span
           onClick={() => onNavigate('calendar')}
-          className="text-xs font-bold text-primary cursor-pointer hover:opacity-70 transition-opacity"
+          className={`text-xs font-bold cursor-pointer hover:opacity-70 transition-opacity ${isDay ? 'text-primary' : 'text-white/80'}`}
         >더보기</span>
       </div>
 
@@ -862,23 +1037,31 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
 
             // 카드 배경/텍스트 색상 결정
             const cardBg  = isToday        ? 'bg-[#0F6045] border-[#0F6045]'
-                          : schedule.isBirthday ? 'bg-pink-50 border-pink-100'
-                          : 'bg-white border-gray-100';
-            const textMain = isToday ? 'text-white' : 'text-gray-900';
-            const textSub  = isToday ? 'text-white/60' : 'text-gray-400';
+                          : schedule.isBirthday ? (isDay ? 'bg-pink-50 border-pink-100' : 'bg-pink-900/40 border-pink-500/30 backdrop-blur-xl')
+                          : (isDay ? 'bg-white border-gray-100' : 'bg-white/10 border-white/10 backdrop-blur-xl');
+            const textMain = isToday ? 'text-white' : (isDay ? 'text-gray-900' : 'text-white');
+            const textSub  = isToday ? 'text-white/60' : (isDay ? 'text-gray-400' : 'text-white/60');
             const dayColor = isToday ? 'text-white'
-                           : isSun   ? 'text-rose-500'
-                           : isSat   ? 'text-blue-500'
-                           : 'text-gray-900';
+                           : isSun   ? (isDay ? 'text-rose-500' : 'text-rose-400')
+                           : isSat   ? (isDay ? 'text-blue-500' : 'text-blue-400')
+                           : (isDay ? 'text-gray-900' : 'text-white');
             const dowColor = isToday ? 'text-white/60'
-                           : isSun   ? 'text-rose-400'
-                           : isSat   ? 'text-blue-400'
-                           : 'text-gray-400';
+                           : isSun   ? (isDay ? 'text-rose-400' : 'text-rose-300')
+                           : isSat   ? (isDay ? 'text-blue-400' : 'text-blue-300')
+                           : (isDay ? 'text-gray-400' : 'text-white/60');
 
             return (
               <div
                 key={schedule.id}
-                onClick={() => onNavigate('calendar')}
+                onClick={() => {
+                  if (schedule.isBirthday) {
+                    onNavigate('calendar');
+                  } else if (onNavigateToSchedule) {
+                    onNavigateToSchedule(schedule);
+                  } else {
+                    onNavigate('calendar');
+                  }
+                }}
                 className={`flex-shrink-0 snap-start w-[112px] rounded-2xl p-3 flex flex-col gap-1.5 cursor-pointer active:scale-[0.96] transition-all shadow-sm border ${cardBg}`}
               >
                 {/* 상단: 월 + D-Day */}
@@ -909,9 +1092,7 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
                 )}
 
                 {/* 제목 */}
-                <p className={`text-[11px] font-semibold leading-snug line-clamp-2 mt-auto ${
-                  isToday ? 'text-white' : 'text-gray-700'
-                }`}>
+                <p className={`text-[11px] font-semibold leading-snug line-clamp-2 mt-auto ${textMain}`}>
                   {schedule.title.replace('🎉 ', '')}
                 </p>
               </div>
@@ -924,7 +1105,7 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
     {/* Family News Highlight (Carousel) */}
     <section id="family-news-section" className="space-y-4 pt-2">
       <div className="flex justify-between items-center px-4">
-        <h2 className="font-headline text-xl font-bold tracking-tight text-on-surface">우리 숲 가족 소식</h2>
+        <h2 className={`font-headline text-xl font-bold tracking-tight ${isDay ? 'text-on-surface' : 'text-white'}`}>우리 숲 가족 소식</h2>
         {(user?.role === 'admin' || user?.role === 'leader' || user?.role === 'pastor') && (
           <button 
             onClick={() => {
@@ -953,23 +1134,13 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
             const badge = getBadge(news.category);
             
             return (
-              <div key={news.id} className="min-w-[85vw] sm:min-w-[300px] snap-center bg-surface-container-lowest rounded-3xl overflow-hidden shadow-sm border border-surface-container-low flex flex-col relative group">
-                <div className="absolute top-4 left-4 z-10 flex gap-2">
-                  <span className={`${badge.color} text-[10px] font-bold px-3 py-1.5 rounded-full shadow-md backdrop-blur-md bg-opacity-90`}>
-                    {badge.label}
-                  </span>
-                </div>
-                {(user?.role === 'admin' || user?.role === 'leader' || user?.role === 'pastor' || user?.uid === news.author_uid) && (
-                  <div className="absolute top-4 right-4 z-10 flex gap-2">
-                    <button onClick={() => { setEditingFamilyNews(news); setIsFamilyNewsModalOpen(true); }} className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/60 transition-colors">
-                      <FileEdit size={14} />
-                    </button>
-                    <button onClick={() => handleDeleteNews(news.id)} className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-error transition-colors">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                )}
-                <div className="aspect-[4/3] w-full bg-surface-container-high relative overflow-hidden">
+              <div 
+                key={news.id} 
+                onClick={() => setSelectedNews(news)}
+                className={`cursor-pointer select-none min-w-[85vw] sm:min-w-[300px] snap-center ${isDay ? 'bg-surface-container-lowest border-surface-container-low' : 'bg-[#0d1625]/60 border-white/10 backdrop-blur-xl'} rounded-3xl overflow-hidden shadow-sm border flex flex-col relative group`}
+              >
+                {/* Image Area - Clean */}
+                <div className="aspect-[4/3] w-full bg-surface-container-high relative overflow-hidden shrink-0">
                   {news.imageUrl ? (
                     <img src={news.imageUrl} alt={news.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" referrerPolicy="no-referrer" />
                   ) : (
@@ -977,17 +1148,43 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
                       <Heart size={48} className="text-on-surface" />
                     </div>
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-                  <div className="absolute bottom-4 left-4 right-4">
-                    <h3 className="text-white font-headline text-lg font-bold leading-tight drop-shadow-md">{news.title}</h3>
-                  </div>
                 </div>
-                <div className="p-5 flex-1 flex flex-col">
-                  <p className="text-sm text-on-surface leading-relaxed line-clamp-3 mb-4 whitespace-pre-wrap">{news.content}</p>
-                  <div className="mt-auto flex justify-between items-center text-xs font-bold text-on-surface-variant pt-4 border-t border-surface-container">
+                
+                {/* Content Area */}
+                <div className="p-5 flex-1 flex flex-col relative">
+                  {/* Badges & Edit Buttons Row */}
+                  <div className="flex justify-between items-start mb-3">
+                    <span className={`${badge.color} text-[10px] font-bold px-3 py-1.5 rounded-full shadow-sm`}>
+                      {badge.label}
+                    </span>
+                    
+                    {(user?.role === 'admin' || user?.role === 'leader' || user?.role === 'pastor' || user?.uid === news.author_uid) && (
+                      <div className="flex gap-2">
+                        <button onClick={(e) => { e.stopPropagation(); setEditingFamilyNews(news); setIsFamilyNewsModalOpen(true); }} className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${isDay ? 'bg-surface-variant text-on-surface hover:bg-surface-container-highest' : 'bg-white/10 text-white hover:bg-white/20'}`}>
+                          <FileEdit size={12} />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteNews(news.id); }} className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors hover:text-white hover:bg-error ${isDay ? 'bg-surface-variant text-error' : 'bg-white/10 text-red-400'}`}>
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Title */}
+                  <h3 className={`font-headline text-[17px] font-bold leading-tight mb-2 ${isDay ? 'text-on-surface' : 'text-white'}`}>
+                    {news.title}
+                  </h3>
+                  
+                  {/* Content snippet */}
+                  <p className={`text-sm ${isDay ? 'text-on-surface-variant' : 'text-white/70'} leading-relaxed line-clamp-3 mb-4 whitespace-pre-wrap`}>
+                    {news.content}
+                  </p>
+                  
+                  {/* Footer (Author, Date, Likes) */}
+                  <div className={`mt-auto flex justify-between items-center text-xs font-bold ${isDay ? 'text-on-surface-variant' : 'text-white/60'} pt-4 border-t ${isDay ? 'border-surface-container' : 'border-white/10'}`}>
                     <span>{news.forest_name ? `[${news.forest_name}] ` : ''}{news.author_name} • {news.created_at?.toDate ? news.created_at.toDate().toLocaleDateString() : ''}</span>
                     <button 
-                      onClick={() => handleToggleLike(news.id, news.likes || [])}
+                      onClick={(e) => { e.stopPropagation(); handleToggleLike(news.id, news.likes || []); }}
                       className={`flex items-center gap-1.5 transition-colors ${news.likes?.includes(user?.uid) ? 'text-pink-500' : 'text-on-surface-variant hover:text-pink-500'}`}
                     >
                       <Heart size={16} className={news.likes?.includes(user?.uid) ? 'fill-pink-500 text-pink-500' : ''} />
@@ -1041,6 +1238,7 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
         forestName={forestName === '소속 없음' ? '우리' : forestName}
         leaderboard={leaderboard}
         isAdmin={user?.role === 'admin'}
+        forests={forests}
       />
 
       {/* Popups */}
@@ -1135,6 +1333,16 @@ const HomeView = ({ user, schedules, surveys, attendance, fees = [], kidsCares =
             </div>
           </div>
         </div>
+      )}
+
+      {/* 가족 소식 상세 모달 */}
+      {selectedNews && (
+        <FamilyNewsDetailModal
+          news={selectedNews}
+          user={user}
+          onClose={() => setSelectedNews(null)}
+          onToggleLike={handleToggleLike}
+        />
       )}
     </>
   );

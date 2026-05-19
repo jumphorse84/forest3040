@@ -5,7 +5,7 @@ import {
   Youtube, Loader2, ChevronDown, ChevronUp, ImagePlus
 } from 'lucide-react';
 import { doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytesResumable, getDownloadURL, uploadString } from 'firebase/storage';
 import { db as firestoreDb, storage } from '../firebase';
 import { OperationType, handleFirestoreError } from '../App';
 import { searchBible } from '../utils/bibleParser';
@@ -116,6 +116,7 @@ const WorshipDetailView = ({
         participants: editForm.participants || [],
         praise: editForm.praise || [],
         announcements: editForm.announcements || [],
+        announcementImages: editForm.announcementImages || [],
         updatedAt: Timestamp.now()
       };
       await updateDoc(doc(firestoreDb, 'worships', worshipId as string), updateData);
@@ -124,14 +125,14 @@ const WorshipDetailView = ({
     } catch (err) { handleFirestoreError(err, OperationType.WRITE, 'worships'); }
   };
 
-  const handleKakaoShare = () => {
+  const handleKakaoShare = async () => {
     const kakao = (window as any).Kakao;
     if (!kakao || !kakao.isInitialized()) {
       onShowToast?.("카카오톡 공유 기능을 불러오지 못했습니다.");
       return;
     }
 
-    let descriptionText = "";
+    let descriptionText = "🌿 이번 주 예배의 자리로 여러분을 초대합니다!\n함께 모여 풍성한 은혜를 나누어요.\n\n";
     if (worship.participants && worship.participants.length > 0) {
       // Create role summary: e.g. "사회    박수형 부장"
       descriptionText += worship.participants.map((p: any) => `${p.role}\t${p.name}`).join('\n');
@@ -155,9 +156,27 @@ const WorshipDetailView = ({
     const shareTitle = `${formatDate(worship.date)} 예배`;
 
     let safeImageUrl = 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&q=80&w=800';
-    if (worship.image && worship.image.startsWith('http')) {
-      safeImageUrl = worship.image;
+    if (worship.image) {
+      if (worship.image.startsWith('http')) {
+        safeImageUrl = worship.image;
+      } else if (worship.image.startsWith('data:image')) {
+        onShowToast?.("공유용 이미지를 준비 중입니다...");
+        try {
+          const storageRef = ref(storage, `worship_covers/${worship.id}_${Date.now()}.jpg`);
+          await uploadString(storageRef, worship.image, 'data_url');
+          safeImageUrl = await getDownloadURL(storageRef);
+          
+          // Background update to save the URL to Firestore
+          updateDoc(doc(firestoreDb, 'worships', worship.id), {
+            image: safeImageUrl
+          }).catch(console.error);
+        } catch (error) {
+          console.error("Firebase Storage Upload Error:", error);
+        }
+      }
     }
+
+    const shareUrl = `${window.location.origin}/?worship_id=${worship.id}`;
 
     kakao.Share.sendDefault({
       objectType: 'feed',
@@ -166,16 +185,16 @@ const WorshipDetailView = ({
         description: descriptionText,
         imageUrl: safeImageUrl,
         link: {
-          mobileWebUrl: window.location.href,
-          webUrl: window.location.href,
+          mobileWebUrl: shareUrl,
+          webUrl: shareUrl,
         },
       },
       buttons: [
         {
           title: '예배 확인하기',
           link: {
-            mobileWebUrl: window.location.href,
-            webUrl: window.location.href,
+            mobileWebUrl: shareUrl,
+            webUrl: shareUrl,
           },
         },
       ],
@@ -205,6 +224,45 @@ const WorshipDetailView = ({
       };
     };
     if (coverImageInputRef.current) coverImageInputRef.current.value = '';
+  };
+
+  const handleAnnouncementImageUploadEdit = async (e: any) => {
+    const files = Array.from(e.target.files as FileList);
+    if (!files.length) return;
+    setIsCompressing(true);
+
+    const compressImage = (file: File): Promise<string> => {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event: any) => {
+          const img = new Image();
+          img.src = event.target.result;
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 800; 
+            let width = img.width, height = img.height;
+            if (width > MAX_WIDTH) { height = Math.round((height * MAX_WIDTH) / width); width = MAX_WIDTH; }
+            canvas.width = width; canvas.height = height;
+            canvas.getContext('2d')?.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.7));
+          };
+        };
+      });
+    };
+
+    try {
+      const compressedImages = await Promise.all(files.map(compressImage));
+      setEditForm((prev: any) => ({
+        ...prev,
+        announcementImages: [...(prev.announcementImages || []), ...compressedImages]
+      }));
+    } catch (error) {
+      console.error("이미지 압축 오류:", error);
+    } finally {
+      setIsCompressing(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const handleYoutubeSearch = async (e: any) => {
@@ -367,8 +425,32 @@ const WorshipDetailView = ({
             <section className="bg-white p-5 rounded-2xl shadow-sm space-y-4">
               <div className="flex items-center justify-between border-b pb-2">
                 <h3 className="font-bold text-gray-800 flex items-center gap-2"><Megaphone size={18} className="text-emerald-600" /> 광고</h3>
-                <button onClick={() => setEditForm({...editForm, announcements: [...(editForm.announcements || []), {title: '', content: ''}]})} className="text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-full font-bold transition-colors">텍스트 추가</button>
+                <div className="flex gap-2">
+                  <button onClick={() => fileInputRef.current?.click()} className="text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 px-3 py-1.5 rounded-full flex items-center gap-1 font-bold transition-colors">
+                    {isCompressing ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />} 
+                    {isCompressing ? '압축 중...' : '이미지 첨부'}
+                  </button>
+                  <input type="file" multiple accept="image/*" className="hidden" ref={fileInputRef} onChange={handleAnnouncementImageUploadEdit} />
+                  
+                  <button onClick={() => setEditForm({...editForm, announcements: [...(editForm.announcements || []), {title: '', content: ''}]})} className="text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-1.5 rounded-full font-bold transition-colors">텍스트 추가</button>
+                </div>
               </div>
+
+              {editForm.announcementImages && editForm.announcementImages.length > 0 && (
+                <div className="flex overflow-x-auto gap-3 pb-2 snap-x snap-mandatory" style={hideScrollbarStyle}>
+                  {editForm.announcementImages.map((imgSrc: string, idx: number) => (
+                    <div key={idx} className="relative shrink-0 w-32 h-32 snap-start border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
+                      <img src={imgSrc} alt="광고 이미지" className="w-full h-full object-cover" />
+                      <button 
+                        onClick={() => setEditForm({...editForm, announcementImages: editForm.announcementImages.filter((_:any, i:number) => i !== idx)})} 
+                        className="absolute top-1 right-1 p-1.5 bg-black/50 hover:bg-red-500 text-white rounded-full transition-colors backdrop-blur-sm"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               {(editForm.announcements || []).map((ann: any, idx: number) => (
                 <div key={idx} className="flex gap-3">
                   <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0">{idx + 1}</div>
@@ -677,11 +759,20 @@ const WorshipDetailView = ({
           )}
 
           {/* 광고 */}
-          {worship.announcements && worship.announcements.length > 0 && (
+          {((worship.announcements && worship.announcements.length > 0) || (worship.announcementImages && worship.announcementImages.length > 0)) && (
             <section className="bg-white p-5 rounded-2xl shadow-sm space-y-4">
               <h3 className="font-bold text-gray-800 border-b pb-2 flex items-center gap-2">
                 <Megaphone size={18} className="text-emerald-600" /> 광고
               </h3>
+              
+              {worship.announcementImages && worship.announcementImages.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  {worship.announcementImages.map((imgSrc: string, idx: number) => (
+                    <img key={idx} src={imgSrc} alt="광고 첨부 이미지" className="w-full h-auto rounded-xl border border-gray-100" />
+                  ))}
+                </div>
+              )}
+
               <div className="space-y-4">
                 {worship.announcements.map((a: any, idx: number) => (
                   <div key={idx} className="flex gap-3">

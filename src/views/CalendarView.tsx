@@ -11,14 +11,21 @@ import { db as firestoreDb, auth, storage } from '../firebase';
 import { MenuButton, ScheduleItem, MemberRow, OperationType, handleFirestoreError } from '../App';
 import { VISIT_CATEGORIES } from '../components/PastoralCardModal';
 
-const CalendarView = ({ user, schedules = [], onShowToast }: any) => {
+const CalendarView = ({ user, schedules = [], onShowToast, initialSchedule, onClearInitialSchedule }: any) => {
     const [today] = useState(new Date());
   const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   
   const [isAdding, setIsAdding] = useState(false);
   const [newSchedule, setNewSchedule] = useState({ title: '', time: '', location: '', type: 'worship', d_day: 'D-?', date: '' });
 
-  const [selectedScheduleForDetail, setSelectedScheduleForDetail] = useState<any>(null);
+  const [selectedScheduleForDetail, setSelectedScheduleForDetail] = useState<any>(initialSchedule || null);
+
+  useEffect(() => {
+    if (initialSchedule) {
+      setSelectedScheduleForDetail(initialSchedule);
+      if (onClearInitialSchedule) onClearInitialSchedule();
+    }
+  }, [initialSchedule, onClearInitialSchedule]);
   const [isEditingDetail, setIsEditingDetail] = useState(false);
   const [editScheduleData, setEditScheduleData] = useState<any>(null);
 
@@ -245,7 +252,7 @@ const CalendarView = ({ user, schedules = [], onShowToast }: any) => {
       </div>
 
       {/* Schedule Add Action */}
-      {(user?.role === 'admin' || user?.role === 'leader' || user?.email === 'jumphorse@nate.com' || user?.email === 'seokgwan.ms01@gmail.com') && (
+      {(user?.role === 'admin' || user?.role === 'leader') && (
         <button 
           onClick={() => {
             const dateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
@@ -376,7 +383,7 @@ const CalendarView = ({ user, schedules = [], onShowToast }: any) => {
                 </div>
 
                 {/* Admin controls */}
-                {(user?.role === 'admin' || user?.role === 'leader' || user?.email === 'jumphorse@nate.com' || user?.email === 'seokgwan.ms01@gmail.com') && (
+                {(user?.role === 'admin' || user?.role === 'leader') && (
                   <div className="flex gap-3 pt-6">
                     <button 
                       onClick={() => {
